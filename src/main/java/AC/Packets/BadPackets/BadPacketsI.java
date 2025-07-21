@@ -3,12 +3,14 @@ package AC.Packets.BadPackets;
 import lombok.experimental.UtilityClass;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
+
 @UtilityClass
 public class BadPacketsI {
 
     private static final float MIN_VALID_COORDINATE = 0.0f;
     private static final float MAX_VALID_COORDINATE = 1.0f;
-    private static final double MIN_DOT_PRODUCT = 0.5;
+    private static final double MIN_DOT_PRODUCT = -1.0;
+    private static final double MAX_DOT_PRODUCT = 1.0;
 
     public boolean isValid(Player player, Integer face, Float cursorX, Float cursorY, Float cursorZ, Boolean insideBlock, Integer sequence) {
         StringBuilder nullParams = new StringBuilder();
@@ -80,7 +82,13 @@ public class BadPacketsI {
     private boolean isLookingAtCorrectFace(Player player, int face) {
         Vector playerDirection = player.getEyeLocation().getDirection().normalize();
         Vector blockFaceDirection = getBlockFaceDirection(face);
-        return blockFaceDirection != null && playerDirection.dot(blockFaceDirection) > MIN_DOT_PRODUCT;
+
+        if (blockFaceDirection == null) {
+            return false;
+        }
+
+        double dot = playerDirection.dot(blockFaceDirection);
+        return dot >= MIN_DOT_PRODUCT && dot <= MAX_DOT_PRODUCT;
     }
 
     private Vector getBlockFaceDirection(int face) {

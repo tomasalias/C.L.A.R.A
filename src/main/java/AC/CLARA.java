@@ -1,10 +1,10 @@
 package AC;
 
 import AC.Checks.Movement.SpeedCheckA;
+import AC.Commands.acping;
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.PluginUtils.ListenerRegistrar;
 import AC.Utils.PluginUtils.Messages;
-import AC.Utils.PluginUtils.PlayerInitialisers;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.PacketEvents;
 import lombok.Getter;
@@ -46,11 +46,16 @@ public final class CLARA extends JavaPlugin {
         // Initialize the ConcurrentHashMap to manage SpeedCheckA instances for players
         speedCheckMap = new ConcurrentHashMap<>();
 
+        // Register the /acping command
+        this.getCommand("acping").setExecutor(new acping());
+
+
+
         // Display startup messages
         Messages.startUpComments();
 
         // Register packet listeners
-        ListenerRegistrar.registerPacketListeners(speedCheckMap, executorService);
+        ListenerRegistrar.registerPacketListeners(speedCheckMap, executorService,playerOpStorage);
 
         // Register event listeners and pass dependencies (PlayerOpStorage, SpeedCheckMap, and ThreadPool)
         ListenerRegistrar.registerEventListeners(this, new PlayerInitialisers(playerOpStorage, speedCheckMap, executorService));

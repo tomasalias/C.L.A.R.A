@@ -5,15 +5,12 @@ import AC.Checks.Combat.ReachCheckA;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
-import com.github.retrooper.packetevents.protocol.player.InteractionHand;
 import com.github.retrooper.packetevents.util.Vector3f;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-
 import java.util.Optional;
-import java.util.UUID;
 
 public class InteractEntity extends PacketListenerAbstract {
 
@@ -29,7 +26,6 @@ public class InteractEntity extends PacketListenerAbstract {
         int entityID = interactWrapper.getEntityId();
         WrapperPlayClientInteractEntity.InteractAction action = interactWrapper.getAction();
         Optional<Vector3f> target = interactWrapper.getTarget();
-        InteractionHand hand = interactWrapper.getHand();
         boolean sneaking = interactWrapper.isSneaking().orElse(false);
 
         // Fetch entities on the main thread
@@ -47,17 +43,12 @@ public class InteractEntity extends PacketListenerAbstract {
             if (entity != null) {
                 String entityType = entity.getType().name();
                 System.out.println("[DEBUG] Found Entity Type: " + entityType);
-
-                // Continue processing the entity asynchronously
-                processEntity(player, action, target, entity, event);
-            } else {
-                System.out.println("[DEBUG] Entity not found.");
+                processInteract(player, action, target, entity, event);
             }
         });
     }
 
-    private void processEntity(Player player, WrapperPlayClientInteractEntity.InteractAction action, Optional<Vector3f> target, Entity entity, PacketReceiveEvent event) {
-        // This part runs asynchronously
+    private void processInteract(Player player, WrapperPlayClientInteractEntity.InteractAction action, Optional<Vector3f> target, Entity entity, PacketReceiveEvent event) {
         switch (action) {
             case INTERACT:
                 System.out.println("[DEBUG] Player " + player.getName() + " interacted with entity: " + entity.getType().name());

@@ -29,9 +29,10 @@ public final class ListenerRegistrar {
      * @param speedCheckMap A ConcurrentHashMap managing SpeedCheckA instances for players.
      *                      This is specifically used by the Position packet listener.
      */
-    public static void registerPacketListeners(ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap, ExecutorService executorService) {
+    public static void registerPacketListeners(ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap, ExecutorService executorService,PlayerOpStorage playerOpStorage) {
+
         // Register a packet listener for handling abilities-related packets
-        PacketEvents.getAPI().getEventManager().registerListener(new Abilities());
+        PacketEvents.getAPI().getEventManager().registerListener(new Abilities(playerOpStorage));
 
         // Register a packet listener for block digging actions
         PacketEvents.getAPI().getEventManager().registerListener(new BlockDig());

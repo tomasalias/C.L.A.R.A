@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 
 public class SpeedCheckA {
     // Maximum difference thresholds for detecting speed based on Y-axis change
-    private static final double MAX_DIFFERENCE_THRESHOLD_Y_CHANGED = 0.613;
+    private static final double MAX_DIFFERENCE_THRESHOLD_Y_CHANGED = 1.14;
     private static final double MAX_DIFFERENCE_THRESHOLD_Y_SAME = 0.287;
     private static final double EPSILON = 1e-5; // Small epsilon value to avoid floating point precision issues
 
