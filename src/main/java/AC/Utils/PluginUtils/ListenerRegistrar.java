@@ -35,36 +35,36 @@ public final class ListenerRegistrar {
         PacketEvents.getAPI().getEventManager().registerListener(new Abilities(playerOpStorage));
 
         // Register a packet listener for block digging actions
-        PacketEvents.getAPI().getEventManager().registerListener(new BlockDig());
+        PacketEvents.getAPI().getEventManager().registerListener(new BlockDig(playerOpStorage));
 
         // Register a packet listener for block placement actions
-        PacketEvents.getAPI().getEventManager().registerListener(new BlockPlace());
+        PacketEvents.getAPI().getEventManager().registerListener(new BlockPlace(playerOpStorage));
 
         // Register a packet listener for player chat messages
-        PacketEvents.getAPI().getEventManager().registerListener(new Chat());
+        PacketEvents.getAPI().getEventManager().registerListener(new Chat(playerOpStorage));
 
         // Register a packet listener for held item slot changes
-        PacketEvents.getAPI().getEventManager().registerListener(new HeldItemSlot());
+        PacketEvents.getAPI().getEventManager().registerListener(new HeldItemSlot(playerOpStorage));
 
         // Register a packet listener for interactions with entities
-        PacketEvents.getAPI().getEventManager().registerListener(new InteractEntity());
+        PacketEvents.getAPI().getEventManager().registerListener(new InteractEntity(playerOpStorage));
 
         // Register a packet listener for player look direction updates
-        PacketEvents.getAPI().getEventManager().registerListener(new Look());
+        PacketEvents.getAPI().getEventManager().registerListener(new Look(playerOpStorage));
 
         // Register a packet listener for player movement (position changes)
         // This listener requires the speedCheckMap to track speed-related checks per player
-        PacketEvents.getAPI().getEventManager().registerListener(new Position(speedCheckMap));
+        PacketEvents.getAPI().getEventManager().registerListener(new Position(speedCheckMap,playerOpStorage));
 
         // Register a packet listener for combined position and look updates
         // This listener requires the speedCheckMap to track speed-related checks per player
-        PacketEvents.getAPI().getEventManager().registerListener(new PositionLook(speedCheckMap));
+        PacketEvents.getAPI().getEventManager().registerListener(new PositionLook(speedCheckMap,playerOpStorage));
 
         // Register a packet listener for player steering vehicle actions
-        PacketEvents.getAPI().getEventManager().registerListener(new SteerVehicle());
+        PacketEvents.getAPI().getEventManager().registerListener(new SteerVehicle(playerOpStorage));
 
         // Register a packet listener for vehicle movement updates
-        PacketEvents.getAPI().getEventManager().registerListener(new VehicleMove());
+        PacketEvents.getAPI().getEventManager().registerListener(new VehicleMove(playerOpStorage));
 
         // Register a packet listener for LoginStart Packets.
         PacketEvents.getAPI().getEventManager().registerListener(new LoginStart());

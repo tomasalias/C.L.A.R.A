@@ -1,60 +1,60 @@
 package AC.Packets.BadPackets;
 
+import org.bukkit.entity.Player;
 import lombok.experimental.UtilityClass;
 
-// Utility class for validating player position and orientation data in network packets.
-// This class ensures that position values (x, y, z) and orientation values (yaw, pitch)
-// are within acceptable ranges and finite. Such validation is crucial for detecting
-// corrupted or malicious packets that could disrupt gameplay or lead to exploits.
-
+/**
+ * Utility class for validating player position and orientation data in network packets.
+ * Ensures coordinates and rotation values are finite and within acceptable ranges.
+ * Operators are exempted from these checks to prevent false positives during moderation.
+ */
 @UtilityClass
 public class BadPacketsA {
 
-    // Constants defining the valid ranges for player positions and orientations.
-    // These boundaries correspond to Minecraft's world limits for coordinates
-    // and realistic angles for orientation.
-    private static final int MIN_VALID_POSITION = -30000000; // Minimum possible position value
-    private static final double MAX_VALID_POSITION = 30000000; // Maximum possible position value
-    private static final float MIN_VALID_PITCH = -90.0f; // Minimum possible pitch (looking up)
-    private static final float MAX_VALID_PITCH = 90.0f;  // Maximum possible pitch (looking down)
-    private static final int Min_Valid_Yaw = 0;          // Minimum possible yaw (north direction)
-    private static final int Max_Valid_Yaw = 360;        // Maximum possible yaw (full rotation)
+    private static final int MIN_VALID_POSITION = -30_000_000;
+    private static final double MAX_VALID_POSITION = 30_000_000;
+    private static final float MIN_VALID_PITCH = -90.0f;
+    private static final float MAX_VALID_PITCH = 90.0f;
+    private static final int MIN_VALID_YAW = 0;
+    private static final int MAX_VALID_YAW = 360;
 
     /**
-     * Validates player packet data for position and orientation.
-     * Ensures all values are finite (not NaN or infinite) and fall within valid bounds.
+     * Validates packet data for position and orientation.
+     * Returns true if player is exempt or values are all within bounds.
      *
-     * @param x Player's X coordinate
-     * @param y Player's Y coordinate
-     * @param z Player's Z coordinate
-     * @param yaw Player's yaw (horizontal rotation)
-     * @param pitch Player's pitch (vertical rotation)
-     * @return True if the data is valid, false otherwise
+     * @param player The player associated with the packet.
+     * @param x      Player's X coordinate.
+     * @param y      Player's Y coordinate.
+     * @param z      Player's Z coordinate.
+     * @param yaw    Player's yaw (horizontal rotation).
+     * @param pitch  Player's pitch (vertical rotation).
+     * @return True if valid or exempt, false if malformed.
      */
-    public static boolean isValid(double x, double y, double z, float yaw, float pitch) {
-        // Ensure position and orientation values are finite and within bounds
+    public static boolean isValid(Player player, double x, double y, double z, float yaw, float pitch) {
+        if (player != null && player.isOp()) {
+            return true; // Operators bypass validation
+        }
+
         return Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z) &&
+                Float.isFinite(yaw) && Float.isFinite(pitch) &&
                 isWithinBounds(x, y, z, yaw, pitch);
     }
 
     /**
-     * Checks whether player position and orientation values fall within acceptable ranges.
-     * Used internally by the isValid method to verify bounds for all values.
+     * Internal bounds verification method.
      *
-     * @param x Player's X coordinate
-     * @param y Player's Y coordinate
-     * @param z Player's Z coordinate
-     * @param yaw Player's yaw (horizontal rotation)
-     * @param pitch Player's pitch (vertical rotation)
-     * @return True if all values are within valid ranges, false otherwise
+     * @param x     X position.
+     * @param y     Y position.
+     * @param z     Z position.
+     * @param yaw   Yaw angle.
+     * @param pitch Pitch angle.
+     * @return True if all values fall within valid ranges.
      */
     private static boolean isWithinBounds(double x, double y, double z, float yaw, float pitch) {
-        // Validate position coordinates and orientation angles
         return x >= MIN_VALID_POSITION && x <= MAX_VALID_POSITION &&
                 y >= MIN_VALID_POSITION && y <= MAX_VALID_POSITION &&
                 z >= MIN_VALID_POSITION && z <= MAX_VALID_POSITION &&
-                Float.isFinite(yaw) && Float.isFinite(pitch) &&
                 pitch >= MIN_VALID_PITCH && pitch <= MAX_VALID_PITCH &&
-                yaw >= Min_Valid_Yaw && yaw <= Max_Valid_Yaw;
+                yaw >= MIN_VALID_YAW && yaw <= MAX_VALID_YAW;
     }
 }
