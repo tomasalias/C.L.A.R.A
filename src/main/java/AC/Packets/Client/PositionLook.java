@@ -101,6 +101,8 @@ public class PositionLook extends PacketListenerAbstract {
         } catch (Exception e) {
             e.printStackTrace(); // Fail safely and log diagnostic info
         }
+        long currentTime = System.currentTimeMillis(); // or nanoTime for precision
+        CLARA.getInstance().getTimer().onMovementPacket(player.getUniqueId(), currentTime);
 
         // Log raw position data for auxiliary systems (e.g., packet history or outlier detection)
         PlayerData playerData = CLARA.getPlayerData(playerUUID);

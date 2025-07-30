@@ -100,6 +100,9 @@ public class Position extends PacketListenerAbstract {
             e.printStackTrace(); // Log error during speed check logic
         }
 
+        long currentTime = System.currentTimeMillis(); // or nanoTime for precision
+        CLARA.getInstance().getTimer().onMovementPacket(player.getUniqueId(), currentTime);
+
         // Log the raw position to playerData for other systems (e.g., outlier detection)
         PlayerData playerData = CLARA.getPlayerData(playerUUID);
         playerData.addPosition(x, y, z);

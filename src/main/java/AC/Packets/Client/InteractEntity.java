@@ -11,6 +11,7 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientIn
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Boat;
 
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +22,7 @@ public class InteractEntity extends PacketListenerAbstract {
 
     private final PlayerOpStorage playerOpStorage;
     private final Map<UUID, Boolean> opCache = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> recentBoatClicks = new ConcurrentHashMap<>();
 
     public InteractEntity(PlayerOpStorage playerOpStorage) {
         this.playerOpStorage = playerOpStorage;
@@ -64,8 +66,17 @@ public class InteractEntity extends PacketListenerAbstract {
 
     private void processInteract(Player player, WrapperPlayClientInteractEntity.InteractAction action,
                                  Optional<Vector3f> target, Entity entity, PacketReceiveEvent event) {
+        UUID playerUUID = player.getUniqueId();
+
         switch (action) {
-            case INTERACT -> System.out.println("[DEBUG] Player " + player.getName() + " interacted with entity: " + entity.getType().name());
+            case INTERACT -> {
+                System.out.println("[DEBUG] Player " + player.getName() + " interacted with entity: " + entity.getType().name());
+
+                if (entity instanceof Boat) {
+                    System.out.println("[DEBUG] Boat click detected — flagging exemption window.");
+                    flagBoatClick(playerUUID);
+                }
+            }
             case ATTACK -> {
                 if (entity instanceof Player victim) {
                     System.out.println("[DEBUG] Player " + player.getName() + " attacked another player: " + victim.getName());
@@ -86,6 +97,18 @@ public class InteractEntity extends PacketListenerAbstract {
             }
             default -> System.out.println("[DEBUG] Unsupported interaction type (" + action + ")");
         }
+
         System.out.println("[DEBUG] Completed processing for player: " + player.getName());
+    }
+
+    // Store boat click timestamp
+    public void flagBoatClick(UUID playerUUID) {
+        recentBoatClicks.put(playerUUID, System.currentTimeMillis());
+    }
+
+    // Check if player clicked a boat recently
+    public boolean didRecentlyClickBoat(UUID playerUUID) {
+        Long timestamp = recentBoatClicks.get(playerUUID);
+        return timestamp != null && System.currentTimeMillis() - timestamp <= 2000;
     }
 }

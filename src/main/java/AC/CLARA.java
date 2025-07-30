@@ -1,6 +1,8 @@
 package AC;
 
 import AC.Checks.Movement.SpeedCheckA;
+import AC.Packets.Client.InteractEntity;
+import AC.Checks.Timer;
 import AC.Commands.acping;
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.Listeners.RespawnListener;
@@ -17,71 +19,74 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class CLARA extends JavaPlugin {
-    @Getter
-    private static CLARA instance;
 
-    @Getter
-    private PlayerOpStorage playerOpStorage;
-
-    @Getter
-    private ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap;
-
-    @Getter
-    private ConcurrentHashMap<UUID, Long> playerRespawnMap;
-
+    @Getter private static CLARA instance;
+    @Getter private PlayerOpStorage playerOpStorage;
+    @Getter private ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap;
+    @Getter private ConcurrentHashMap<UUID, Long> playerRespawnMap;
+    @Getter public Timer timer;
     private ExecutorService executorService;
-
     public static ConcurrentHashMap<UUID, PlayerData> playerDataMap;
-
-    public static PlayerData getPlayerData(UUID uuid) {
-        return playerDataMap.get(uuid);
-    }
-
-    private final ConcurrentHashMap<String, Long> playerPingTimestamps = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
-        // Set instance reference for global access
+        // Global instance
         instance = this;
 
-        // Initialize thread pool
+        // Thread pool & data structures
         executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-
-        // Initialize maps
         playerOpStorage = new PlayerOpStorage();
         speedCheckMap = new ConcurrentHashMap<>();
         playerRespawnMap = new ConcurrentHashMap<>();
         playerDataMap = new ConcurrentHashMap<>();
+        timer = new Timer();
 
-        // Register commands
+        // Command registration
         this.getCommand("acping").setExecutor(new acping());
 
-        // Startup message
+        // Startup messaging
         Messages.startUpComments();
 
-        // Register core listeners
+        // 1) Register all packet-level checks
         ListenerRegistrar.registerPacketListeners(speedCheckMap, executorService, playerOpStorage);
-        ListenerRegistrar.registerEventListeners(this, new PlayerInitialisers(playerOpStorage, speedCheckMap, executorService));
 
-        // Register respawn tracking listener
-        getServer().getPluginManager().registerEvents(new RespawnListener(playerRespawnMap), this);
+        // 2) InteractEntity listener for boat click exemptions
+        InteractEntity interactEntity = new InteractEntity(playerOpStorage);
+        PacketEvents.getAPI().getEventManager().registerListener(interactEntity);
+
+        // 3) Register event listeners and inject all required resources
+        ListenerRegistrar.registerEventListeners(
+                this,
+                new PlayerInitialisers(
+                        playerOpStorage,
+                        speedCheckMap,
+                        executorService,
+                        interactEntity::didRecentlyClickBoat,
+                        playerRespawnMap // ✅ Injected here for SpeedCheckA’s post-respawn exemption logic
+                )
+        );
+
+        // 4) Respawn tracking — stores last respawn timestamps
+        getServer().getPluginManager().registerEvents(
+                new RespawnListener(playerRespawnMap),
+                this
+        );
     }
 
     @Override
     public void onDisable() {
-        // Shutdown message
         Messages.shutdownComments();
-
-        // Unregister listeners
         PacketEvents.getAPI().getEventManager().unregisterAllListeners();
 
-        // Gracefully shut down thread pool
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
-
             for (SpeedCheckA speedCheckA : speedCheckMap.values()) {
                 speedCheckA.SpeedCheckAShutdown();
             }
         }
+    }
+
+    public static PlayerData getPlayerData(UUID uuid) {
+        return playerDataMap.get(uuid);
     }
 }
