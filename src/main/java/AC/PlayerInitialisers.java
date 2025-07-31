@@ -2,6 +2,7 @@ package AC;
 
 import AC.Checks.Movement.SpeedCheckA;
 import AC.Utils.CheckUtils.PlayerData;
+import AC.Utils.CheckUtils.VelocityCheckStorage;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import AC.Utils.PluginUtils.sendPingPacket;
 import org.bukkit.entity.Player;
@@ -65,6 +66,8 @@ public class PlayerInitialisers implements Listener {
                 playerRespawnMap // <-- Injecting the respawn exemption map
         );
         speedCheckMap.put(playerUUID, speedCheckA);
+        VelocityCheckStorage.registerPlayer(playerUUID);
+
 
         playerDataMap.put(playerUUID, new PlayerData());
         sendPingPacket.triggerPing(player);
@@ -77,7 +80,7 @@ public class PlayerInitialisers implements Listener {
 
         speedCheckMap.remove(playerUUID);
         playerOpStorage.removePlayerOperatorStatus(player);
-
+        VelocityCheckStorage.unregisterPlayer(playerUUID);
         PlayerData pd = playerDataMap.get(playerUUID);
         if (pd != null) pd.stopPingLogging();
         playerDataMap.remove(playerUUID);

@@ -2,6 +2,8 @@ package AC.Packets.Client;
 
 import AC.CLARA;
 import AC.Checks.Combat.ReachCheckA;
+import AC.Checks.Movement.VelocityCheckA;
+import AC.Utils.CheckUtils.VelocityCheckStorage;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
@@ -80,8 +82,19 @@ public class InteractEntity extends PacketListenerAbstract {
             case ATTACK -> {
                 if (entity instanceof Player victim) {
                     System.out.println("[DEBUG] Player " + player.getName() + " attacked another player: " + victim.getName());
+
+                    // Reach check
                     ReachCheckA reachCheck = new ReachCheckA();
                     reachCheck.checkHit(player, victim);
+
+                    // Velocity check trigger
+                    VelocityCheckA velocityCheck = VelocityCheckStorage.get(victim.getUniqueId());
+                    if (velocityCheck != null) {
+                        velocityCheck.logTrigger();
+                    } else {
+                        System.out.println("[WARN] VelocityCheckA not found for victim: " + victim.getName());
+                    }
+
                 } else {
                     System.out.println("[DEBUG] Player " + player.getName() + " attacked a non-player entity: " + entity.getType().name());
                 }
