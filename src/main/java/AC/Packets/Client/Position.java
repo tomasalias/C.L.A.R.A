@@ -4,8 +4,10 @@ package AC.Packets.Client;
 
 import AC.CLARA;
 import AC.Checks.Movement.SpeedCheckA;
+import AC.Checks.Movement.VelocityCheckA;
 import AC.Packets.BadPackets.BadPacketsB;
 import AC.Utils.CheckUtils.PlayerData;
+import AC.Utils.CheckUtils.VelocityCheckStorage;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
@@ -106,5 +108,11 @@ public class Position extends PacketListenerAbstract {
         // Log the raw position to playerData for other systems (e.g., outlier detection)
         PlayerData playerData = CLARA.getPlayerData(playerUUID);
         playerData.addPosition(x, y, z);
+
+        VelocityCheckA velocityCheck = VelocityCheckStorage.get(playerUUID);
+        if (velocityCheck != null) {
+            velocityCheck.addPosition(x, y, z);
+        }
+
     }
 }

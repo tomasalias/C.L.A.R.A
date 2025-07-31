@@ -4,11 +4,13 @@ import AC.Checks.Movement.SpeedCheckA;
 import AC.Packets.Client.InteractEntity;
 import AC.Checks.Timer;
 import AC.Commands.acping;
+import AC.Packets.Server.SetEntityVelocity;
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.Listeners.RespawnListener;
 import AC.Utils.PluginUtils.ListenerRegistrar;
 import AC.Utils.PluginUtils.Messages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
+import AC.Utils.PluginUtils.ServerListenerRegistrar;
 import com.github.retrooper.packetevents.PacketEvents;
 import lombok.Getter;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -49,6 +51,7 @@ public final class CLARA extends JavaPlugin {
 
         // 1) Register all packet-level checks
         ListenerRegistrar.registerPacketListeners(speedCheckMap, executorService, playerOpStorage);
+        ServerListenerRegistrar.registerServerPacketListeners();
 
         // 2) InteractEntity listener for boat click exemptions
         InteractEntity interactEntity = new InteractEntity(playerOpStorage);
