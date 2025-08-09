@@ -27,7 +27,6 @@ public class VelocityCheckA {
 
     public void addPosition(double x, double y, double z) {
         recentPositions.add(new Vector3d(x, y, z));
-        logger.info("VelocityCheckA received position: " + x + ", " + y + ", " + z);
     }
 
     public void EntityVelocitySent(Player player, Vector3d velocity, int entityId) {

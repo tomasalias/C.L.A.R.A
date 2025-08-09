@@ -1,8 +1,6 @@
 package AC;
 
-import AC.Checks.Movement.SpeedCheckA;
 import AC.Utils.CheckUtils.PlayerData;
-import AC.Utils.CheckUtils.VelocityCheckStorage;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import AC.Utils.PluginUtils.sendPingPacket;
 import org.bukkit.entity.Player;
@@ -24,9 +22,7 @@ import static AC.CLARA.playerDataMap;
  */
 public class PlayerInitialisers implements Listener {
     private final PlayerOpStorage playerOpStorage;
-    private final ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap;
     private final ExecutorService threadPool;
-    private final Function<UUID, Boolean> boatExemptionProvider;
 
     /**
      * @param playerOpStorage       manages operator status
@@ -38,15 +34,11 @@ public class PlayerInitialisers implements Listener {
 
     public PlayerInitialisers(
             PlayerOpStorage playerOpStorage,
-            ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap,
             ExecutorService threadPool,
-            Function<UUID, Boolean> boatExemptionProvider,
             ConcurrentHashMap<UUID, Long> playerRespawnMap // ✅ ADD THIS
     ) {
         this.playerOpStorage = playerOpStorage;
-        this.speedCheckMap = speedCheckMap;
         this.threadPool = threadPool;
-        this.boatExemptionProvider = boatExemptionProvider;
         this.playerRespawnMap = playerRespawnMap;
     }
 
@@ -57,18 +49,6 @@ public class PlayerInitialisers implements Listener {
 
         playerOpStorage.updatePlayerOperatorStatus(player);
 
-        // Construct SpeedCheckA with all dependencies including respawnMap
-        SpeedCheckA speedCheckA = new SpeedCheckA(
-                playerUUID,
-                playerOpStorage,
-                threadPool,
-                boatExemptionProvider,
-                playerRespawnMap // <-- Injecting the respawn exemption map
-        );
-        speedCheckMap.put(playerUUID, speedCheckA);
-        VelocityCheckStorage.registerPlayer(playerUUID);
-
-
         playerDataMap.put(playerUUID, new PlayerData());
         sendPingPacket.triggerPing(player);
     }
@@ -77,10 +57,6 @@ public class PlayerInitialisers implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID playerUUID = player.getUniqueId();
-
-        speedCheckMap.remove(playerUUID);
-        playerOpStorage.removePlayerOperatorStatus(player);
-        VelocityCheckStorage.unregisterPlayer(playerUUID);
         PlayerData pd = playerDataMap.get(playerUUID);
         if (pd != null) pd.stopPingLogging();
         playerDataMap.remove(playerUUID);

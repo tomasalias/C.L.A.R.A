@@ -1,10 +1,10 @@
 package AC;
 
-import AC.Checks.Movement.SpeedCheckA;
+
 import AC.Packets.Client.InteractEntity;
 import AC.Checks.Timer;
 import AC.Commands.acping;
-import AC.Packets.Server.SetEntityVelocity;
+
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.Listeners.RespawnListener;
 import AC.Utils.PluginUtils.ListenerRegistrar;
@@ -24,7 +24,6 @@ public final class CLARA extends JavaPlugin {
 
     @Getter private static CLARA instance;
     @Getter private PlayerOpStorage playerOpStorage;
-    @Getter private ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap;
     @Getter private ConcurrentHashMap<UUID, Long> playerRespawnMap;
     @Getter public Timer timer;
     private ExecutorService executorService;
@@ -38,7 +37,6 @@ public final class CLARA extends JavaPlugin {
         // Thread pool & data structures
         executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         playerOpStorage = new PlayerOpStorage();
-        speedCheckMap = new ConcurrentHashMap<>();
         playerRespawnMap = new ConcurrentHashMap<>();
         playerDataMap = new ConcurrentHashMap<>();
         timer = new Timer();
@@ -50,11 +48,11 @@ public final class CLARA extends JavaPlugin {
         Messages.startUpComments();
 
         // 1) Register all packet-level checks
-        ListenerRegistrar.registerPacketListeners(speedCheckMap, executorService, playerOpStorage);
-        ServerListenerRegistrar.registerServerPacketListeners();
+        ListenerRegistrar.registerPacketListeners(executorService, playerOpStorage);
+        ServerListenerRegistrar.registerServerPacketListeners(executorService);
 
         // 2) InteractEntity listener for boat click exemptions
-        InteractEntity interactEntity = new InteractEntity(playerOpStorage);
+        InteractEntity interactEntity = new InteractEntity(executorService,playerOpStorage);
         PacketEvents.getAPI().getEventManager().registerListener(interactEntity);
 
         // 3) Register event listeners and inject all required resources
@@ -62,10 +60,8 @@ public final class CLARA extends JavaPlugin {
                 this,
                 new PlayerInitialisers(
                         playerOpStorage,
-                        speedCheckMap,
                         executorService,
-                        interactEntity::didRecentlyClickBoat,
-                        playerRespawnMap // ✅ Injected here for SpeedCheckA’s post-respawn exemption logic
+                        playerRespawnMap                       // ✅ Pass respawn map
                 )
         );
 
@@ -83,9 +79,6 @@ public final class CLARA extends JavaPlugin {
 
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
-            for (SpeedCheckA speedCheckA : speedCheckMap.values()) {
-                speedCheckA.SpeedCheckAShutdown();
-            }
         }
     }
 

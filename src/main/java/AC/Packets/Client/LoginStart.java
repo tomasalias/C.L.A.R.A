@@ -2,6 +2,7 @@ package AC.Packets.Client;
 
 import AC.Packets.BadPackets.BadPacketsK;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.User;
@@ -9,95 +10,128 @@ import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClient
 
 import java.util.Optional;
 import java.util.UUID;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * This class listens for LOGIN_START packets sent by clients.
+ * These packets are triggered when a player initiates a login.
+ * We validate login data, apply rate-limiting, and blacklist suspicious IPs.
+ */
 public class LoginStart extends PacketListenerAbstract {
-    // Maps to track rate-limiting and blacklisting of users
+
+    // Maps to track rate-limiting and blacklisting of users by IP
     private static final Map<String, Long> rateLimitMap = new ConcurrentHashMap<>();
     private static final Map<String, Long> blacklistMap = new ConcurrentHashMap<>();
-    private static final int RATE_LIMIT_DURATION = 10000; // Time window for rate-limiting in milliseconds (10 seconds)
-    private static final int BLACKLIST_DURATION = 60000; // Duration for blacklisting in milliseconds (60 seconds)
 
+    // Time window for rate-limiting in milliseconds (10 seconds)
+    private static final int RATE_LIMIT_DURATION = 10000;
+
+    // Duration for blacklisting in milliseconds (60 seconds)
+    private static final int BLACKLIST_DURATION = 60000;
+
+    /**
+     * Constructor sets the listener priority to HIGHEST for early interception.
+     */
+    public LoginStart() {
+        super(PacketListenerPriority.HIGHEST);
+    }
+
+    /**
+     * Called when a packet is received from a client.
+     * Filters for LOGIN_START packets and processes them.
+     * @param event The packet receive event.
+     */
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        // Identify the user sending the packet
         User user = event.getUser();
-        // Check if the packet is a "LOGIN_START" type packet
+
+        // Only handle LOGIN_START packets
         if (event.getPacketType() == PacketType.Login.Client.LOGIN_START) {
-            // Process the "LOGIN_START" packet
             handleLoginStart(event, user);
         }
     }
 
+    /**
+     * Handles the LOGIN_START packet.
+     * Applies rate-limiting and blacklisting based on IP, and validates login data.
+     * @param event The packet event.
+     * @param user The user attempting to log in.
+     */
     private void handleLoginStart(PacketReceiveEvent event, User user) {
         // Get the user's IP address
         String userIP = user.getAddress().getAddress().getHostAddress();
-        // Extract the "network portion" of the IP address (first three segments)
+
+        // Extract the network portion of the IP (first three segments)
         String playerIP = getNetworkPortion(userIP);
 
-        // Step 1: Check if the user's IP is blacklisted
+        // Step 1: Check if the IP is blacklisted
         if (isBlacklisted(playerIP)) {
-            // If blacklisted, cancel the packet and notify the user
             event.setCancelled(true);
             user.sendMessage("You have been blacklisted due to suspicious activity. Please wait and try again later.");
-            return; // Stop further processing
+            return;
         }
 
-        // Step 2: Check if the user's IP is rate-limited
+        // Step 2: Check if the IP is rate-limited
         if (isRateLimited(playerIP)) {
-            // If rate-limited, cancel the packet and notify the user
             event.setCancelled(true);
             user.sendMessage("You have been rate-limited. Please try again later.");
-            return; // Stop further processing
+            return;
         }
 
-        // Step 3: Update the rate-limit map to log the user's login attempt
+        // Step 3: Log the login attempt for rate-limiting
         rateLimitMap.put(playerIP, System.currentTimeMillis());
 
-        // Step 4: Extract and validate the login data
+        // Step 4: Extract and validate login data
         WrapperLoginClientLoginStart loginWrapper = new WrapperLoginClientLoginStart(event);
-        String username = loginWrapper.getUsername(); // Extract username
-        Optional<UUID> playerUUID = loginWrapper.getPlayerUUID(); // Extract UUID (if available)
-        String uuidString = playerUUID.map(UUID::toString).orElse(null); // Convert UUID to string (if present)
+        String username = loginWrapper.getUsername();
+        Optional<UUID> playerUUID = loginWrapper.getPlayerUUID();
+        String uuidString = playerUUID.map(UUID::toString).orElse(null);
 
-        // Validate the username and UUID using the validation logic
+        // Validate username and UUID using anti-cheat logic
         boolean isValid = BadPacketsK.isValid(username, uuidString);
 
-        // Step 5: Handle invalid data
+        // Step 5: Blacklist IP if login data is invalid
         if (!isValid) {
-            // Blacklist the user's IP for a duration if the data is invalid
             blacklistMap.put(playerIP, System.currentTimeMillis() + BLACKLIST_DURATION);
-            event.setCancelled(true); // Cancel the packet
+            event.setCancelled(true);
         }
     }
 
+    /**
+     * Extracts the first three segments of an IPv4 address.
+     * Used to group similar IPs for rate-limiting and blacklisting.
+     * @param ip Full IP address.
+     * @return Network portion of the IP.
+     */
     private String getNetworkPortion(String ip) {
-        // Extract the first three segments of an IP address
         String[] parts = ip.split("\\.");
         if (parts.length >= 3) {
             return parts[0] + "." + parts[1] + "." + parts[2];
         }
-        return ip; // Return the full IP if it doesn't have at least 3 segments
+        return ip;
     }
 
+    /**
+     * Checks if the IP is currently rate-limited.
+     * @param playerIP Network portion of the IP.
+     * @return True if rate-limited, false otherwise.
+     */
     private boolean isRateLimited(String playerIP) {
-        // Check if the user's IP has made a recent login request within the rate-limit duration
         Long lastRequestTime = rateLimitMap.get(playerIP);
-        if (lastRequestTime == null) {
-            return false; // No previous login request logged, not rate-limited
-        }
-        long elapsedTime = System.currentTimeMillis() - lastRequestTime; // Calculate time since last request
-        return elapsedTime < RATE_LIMIT_DURATION; // Rate-limited if within the duration
+        if (lastRequestTime == null) return false;
+        long elapsedTime = System.currentTimeMillis() - lastRequestTime;
+        return elapsedTime < RATE_LIMIT_DURATION;
     }
 
+    /**
+     * Checks if the IP is currently blacklisted.
+     * @param playerIP Network portion of the IP.
+     * @return True if blacklisted, false otherwise.
+     */
     private boolean isBlacklisted(String playerIP) {
-        // Check if the user's IP is currently blacklisted
         Long blacklistExpiry = blacklistMap.get(playerIP);
-        if (blacklistExpiry == null) {
-            return false; // Not blacklisted
-        }
-        return System.currentTimeMillis() < blacklistExpiry; // Blacklisted if the current time is before the expiry
+        if (blacklistExpiry == null) return false;
+        return System.currentTimeMillis() < blacklistExpiry;
     }
 }

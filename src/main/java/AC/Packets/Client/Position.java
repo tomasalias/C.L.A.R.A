@@ -1,16 +1,13 @@
 package AC.Packets.Client;
 
-// Packet listener for handling incoming player movement packets
-
 import AC.CLARA;
-import AC.Checks.Movement.SpeedCheckA;
 import AC.Checks.Movement.VelocityCheckA;
 import AC.Packets.BadPackets.BadPacketsB;
 import AC.Utils.CheckUtils.PlayerData;
-import AC.Utils.CheckUtils.VelocityCheckStorage;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.util.Vector3d;
@@ -20,99 +17,107 @@ import org.bukkit.entity.Player;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 /**
- * Handles incoming position packets and performs movement validation
- * including speed checking and packet integrity verification.
+ * This class listens for PLAYER_POSITION packets sent by clients.
+ * These packets contain movement data (x, y, z, onGround).
+ * We use this to validate movement and track timing for checks.
  */
 public class Position extends PacketListenerAbstract {
 
-    // Map storing movement speed check instance per player UUID
-    private final ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap;
-
-    // Utility to determine operator (OP) status for players
+    // Stores operator status to avoid repeated permission checks
     private final PlayerOpStorage playerOpStorage;
 
-    // Cached OP status lookup to avoid repeated permission queries
+    // Thread-safe cache mapping player UUIDs to their operator status
     private final Map<UUID, Boolean> opCache = new ConcurrentHashMap<>();
 
+    // Executor for async processing to avoid blocking the main thread
+    private final ExecutorService executorService;
+
     /**
-     * Constructor to inject dependencies.
+     * Constructor initializes listener with HIGHEST priority and required services.
+     *
+     * @param executorService Thread pool for async execution.
+     * @param playerOpStorage Utility to check if a player is an operator.
      */
-    public Position(ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap, PlayerOpStorage playerOpStorage) {
-        this.speedCheckMap = speedCheckMap;
+    public Position(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
+        super(PacketListenerPriority.HIGHEST); // Ensures this listener runs before others
+        this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }
 
     /**
      * Called when a packet is received from a client.
-     * We only care about position updates for this listener.
+     * Filters for PLAYER_POSITION packets and processes them.
+     *
+     * @param event The packet receive event.
      */
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
+        // We only care about PLAYER_POSITION packets, which contain movement data.
         if (event.getPacketType() == PacketType.Play.Client.PLAYER_POSITION) {
+            // Delegate the handling of movement logic to a dedicated method.
             handlePosition(event.getPlayer(), event);
         }
     }
 
     /**
-     * Main logic for handling incoming player position updates.
-     * Skips OPs, validates coordinates, triggers speed check and logs position.
+     * Handles the PLAYER_POSITION packet.
+     * Validates movement coordinates and updates movement timing.
+     *
+     * @param player The player who sent the movement packet.
+     * @param event  The packet event containing position data.
      */
     private void handlePosition(Player player, PacketReceiveEvent event) {
+        // Retrieve the player's unique identifier for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
-        // Quick check whether this player is an operator
-        // Caches the result for future packets
+        // Check if the player is an operator. We cache this result to avoid repeated permission checks.
+        // If the cache doesn't contain the UUID, we query the PlayerOpStorage and store the result.
         Boolean isOp = opCache.computeIfAbsent(playerUUID, id -> playerOpStorage.isPlayerOperator(player));
+
+        // Operators are typically exempt from anti-cheat checks, so we skip further processing for them.
         if (Boolean.TRUE.equals(isOp)) {
-            return; // Bypass checks for operators
+            return;
         }
 
-        Vector3d position;
-        double x, y, z;
-        boolean onGround;
-
-        // Safely extract position data from the packet
+        // Attempt to wrap the raw packet into a structured format to extract movement data.
+        // If the packet is malformed or wrapping fails, we log the error and skip processing.
+        WrapperPlayClientPlayerPosition wrapper;
         try {
-            WrapperPlayClientPlayerPosition wrapper = new WrapperPlayClientPlayerPosition(event);
-            position = wrapper.getPosition();
-            x = position.getX();
-            y = position.getY();
-            z = position.getZ();
-            onGround = wrapper.isOnGround(); // Useful if vertical checks are later needed
+            wrapper = new WrapperPlayClientPlayerPosition(event);
         } catch (Exception e) {
-            e.printStackTrace(); // Log decoding failure
-            return; // Skip processing for malformed packets
+            e.printStackTrace();
+            return;
         }
 
-        // Check whether coordinates are valid (not corrupted, NaN, or way outside world bounds)
-        try {
-            if (!BadPacketsB.isValid(x, y, z)) {
-                KickMessages.kickPlayerForInvalidPacket(player, "B"); // Kick with custom reason
+        // Extract the movement coordinates (x, y, z) and the onGround flag from the packet.
+        final double x = wrapper.getPosition().getX();
+        final double y = wrapper.getPosition().getY();
+        final double z = wrapper.getPosition().getZ();
+        final boolean onGround = wrapper.isOnGround();
+
+        // To avoid blocking the main server thread, we offload movement validation and timing logic to a background thread.
+        executorService.execute(() -> {
+            try {
+                // Validate the coordinates using anti-cheat logic.
+                // This typically checks for invalid values like NaN, infinity, or extreme out-of-bounds positions.
+                if (!BadPacketsB.isValid(x, y, z)) {
+                    // If the coordinates are invalid, we kick the player with a predefined message.
+                    KickMessages.kickPlayerForInvalidPacket(player, "B");
+                    return;
+                }
+            } catch (Exception e) {
+                // If validation throws an exception, we log it and skip further processing.
+                e.printStackTrace();
                 return;
             }
 
-            // If this player has an associated speed check handler, pass the position update along
-            SpeedCheckA speedCheckA = speedCheckMap.get(playerUUID);
-            if (speedCheckA != null) {
-                speedCheckA.handlePosition(player, x, y, z);
-            }
-        } catch (Exception e) {
-            e.printStackTrace(); // Log error during speed check logic
-        }
-
-        long currentTime = System.currentTimeMillis(); // or nanoTime for precision
-        CLARA.getInstance().getTimer().onMovementPacket(player.getUniqueId(), currentTime);
-
-        // Log the raw position to playerData for other systems (e.g., outlier detection)
-        PlayerData playerData = CLARA.getPlayerData(playerUUID);
-        playerData.addPosition(x, y, z);
-
-        VelocityCheckA velocityCheck = VelocityCheckStorage.get(playerUUID);
-        if (velocityCheck != null) {
-            velocityCheck.addPosition(x, y, z);
-        }
-
+            // Record the timestamp of this movement packet.
+            // This is used by timing-based checks to detect anomalies like speed hacks or teleportation.
+            long currentTime = System.currentTimeMillis();
+            CLARA.getInstance().getTimer().onMovementPacket(playerUUID, currentTime);
+        });
     }
 }

@@ -18,15 +18,16 @@ public class BadPacketsD {
             "rape", "molest", "incest", "pedophile", "bestiality", "gangbang",
             "orgy", "fuckable", "cumshot", "deepthroat", "blowjob", "cum", "anal",
             "spunk", "assmunch", "sex", "masturbation", "porn", "pornhub", "sexting",
-            "jizz", "climax", "nude", "lewd", "blowjob", "cocksucker",
+            "jizz", "climax", "nude", "blowjob", "cocksucker",
 
             // Offensive terms related to disabilities
-            "cripple", "retarded", "mongoloid", "spazz", "handicapped", "special needs",
+            "cripple", "retarded", "mongoloid", "spazz", "handicapped", "special needs","goon",
+            "gooning",
 
             // Gender and sexuality related offensive terms
             "dyke", "butch", "queer", "gay", "lesbian", "transgender", "bi-curious",
             "sex-change", "hermaphrodite", "transphobic", "homophobic", "genderqueer",
-            "cross-dresser", "drag queen", "twink", "bear", "Trans", "tranny",
+            "drag queen", "twink", "Trans", "tranny",
 
             // Hate speech and extremist terms
             "terrorist", "nazi", "kkk", "isis", "alqaeda", "hitler", "bomb", "suicide",

@@ -35,7 +35,7 @@ public class acping implements CommandExecutor {
             return true;
         }
 
-        double ping = targetData.getCurrentPing();
+        double ping = targetData.getLastAveragePing();
         sender.sendMessage(ChatColor.GREEN + target.getName() + "'s ping is " + ChatColor.AQUA + Math.round(ping) + "ms.");
         return true;
     }

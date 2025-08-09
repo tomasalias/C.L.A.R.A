@@ -2,6 +2,7 @@ package AC.Packets.BadPackets;
 
 import lombok.experimental.UtilityClass;
 
+
 // Utility class for validating player orientation data, specifically yaw and pitch.
 // This class ensures that yaw (horizontal rotation) and pitch (vertical rotation) values
 // are within realistic and valid bounds. Validating these values helps detect potential

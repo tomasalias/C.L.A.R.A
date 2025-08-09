@@ -31,10 +31,6 @@ public class Timer {
             long playerPing = (long) playerData.getCurrentPing(); // Truncated to long if it's averaged
 
             long deviation = delta - 50 - playerPing;
-
-            System.out.println("Player " + playerId + " packet interval: " + delta + " ms"
-                    + " (ping-adjusted deviation: " + deviation + " ms"
-                    + ", ping: " + playerPing + " ms)");
         }
 
         lastPacketTimestamps.put(playerId, currentTime);

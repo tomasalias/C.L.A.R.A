@@ -1,16 +1,11 @@
 package AC.Packets.Client;
 
-// Packet listener for processing incoming position + look (rotation) packets
-
 import AC.CLARA;
-import AC.Checks.Movement.SpeedCheckA;
-import AC.Checks.Movement.VelocityCheckA;
-import AC.Packets.BadPackets.BadPacketsB;
-import AC.Utils.CheckUtils.PlayerData;
-import AC.Utils.CheckUtils.VelocityCheckStorage;
+import AC.Packets.BadPackets.BadPacketsA;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.util.Vector3d;
@@ -20,100 +15,107 @@ import org.bukkit.entity.Player;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 /**
- * Handles incoming PLAYER_POSITION_AND_ROTATION packets.
- * Applies validation logic, forwards movement data to SpeedCheckA, and logs coordinates to PlayerData.
+ * This class listens for PLAYER_POSITION_AND_ROTATION packets sent by clients.
+ * These packets contain both movement (x, y, z) and orientation (yaw, pitch) data.
+ * We use this to validate full positional updates and track timing for anti-cheat checks.
  */
 public class PositionLook extends PacketListenerAbstract {
 
-    // Active speed check module per player
-    private final ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap;
-
-    // Utility for checking operator status
+    // Utility to check if a player is an operator
     private final PlayerOpStorage playerOpStorage;
 
-    // OP status cache to reduce permission lookups
+    // Cache to store operator status per player UUID for performance
     private final Map<UUID, Boolean> opCache = new ConcurrentHashMap<>();
 
+    // Thread pool for executing validation logic asynchronously
+    private final ExecutorService executorService;
+
     /**
-     * Constructor for injection of movement check and operator storage dependencies.
+     * Constructor sets up the listener with highest priority and required services.
+     *
+     * @param executorService Thread pool for async execution.
+     * @param playerOpStorage Utility to check operator status.
      */
-    public PositionLook(ConcurrentHashMap<UUID, SpeedCheckA> speedCheckMap, PlayerOpStorage playerOpStorage) {
-        this.speedCheckMap = speedCheckMap;
+    public PositionLook(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
+        super(PacketListenerPriority.HIGHEST);
+        this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }
 
     /**
-     * Packet dispatcher. Filters for PLAYER_POSITION_AND_ROTATION packets only.
+     * Called when a packet is received from a client.
+     * Filters for PLAYER_POSITION_AND_ROTATION packets and delegates processing.
+     *
+     * @param event The packet receive event.
      */
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
+        // We only care about packets that contain both position and rotation data.
         if (event.getPacketType() == PacketType.Play.Client.PLAYER_POSITION_AND_ROTATION) {
             handlePositionAndLook(event.getPlayer(), event);
         }
     }
 
     /**
-     * Main logic for decoding player movement and rotation.
-     * Skips operators, validates coordinates, pipes valid movement to SpeedCheckA, logs to PlayerData.
+     * Processes the PLAYER_POSITION_AND_ROTATION packet.
+     * Validates movement and orientation values, and updates timing for anti-cheat checks.
+     *
+     * @param player The player who sent the packet.
+     * @param event  The packet event containing position and rotation data.
      */
     private void handlePositionAndLook(Player player, PacketReceiveEvent event) {
+        // Retrieve the player's UUID for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
-        // Compute and cache operator status if not already cached
+        // Check if the player is an operator. If not cached, query and store the result.
         Boolean isOp = opCache.computeIfAbsent(playerUUID, id -> playerOpStorage.isPlayerOperator(player));
+
+        // Operators are typically exempt from anti-cheat checks, so we skip further processing.
         if (Boolean.TRUE.equals(isOp)) {
-            return; // Skip validation for operators
-        }
-
-        // Movement data containers
-        Vector3d position;
-        double x, y, z;
-        float yaw, pitch;
-        boolean onGround;
-
-        // Safely unpack position and rotation fields from the packet
-        try {
-            WrapperPlayClientPlayerPositionAndRotation wrapper = new WrapperPlayClientPlayerPositionAndRotation(event);
-            position = wrapper.getPosition();
-            x = position.getX();
-            y = position.getY();
-            z = position.getZ();
-            yaw = wrapper.getYaw();      // Not currently used but can be useful for future look validation
-            pitch = wrapper.getPitch();  // Ditto for pitch
-            onGround = wrapper.isOnGround(); // For future fall validation or vertical checks
-        } catch (Exception e) {
-            e.printStackTrace(); // Log decoding failure
             return;
         }
 
-        // Validate the incoming position data
+        // Attempt to wrap the raw packet into a structured format to extract movement and rotation data.
+        // If the packet is malformed or wrapping fails, log the error and skip processing.
+        WrapperPlayClientPlayerPositionAndRotation wrapper;
         try {
-            if (!BadPacketsB.isValid(x, y, z)) {
-                KickMessages.kickPlayerForInvalidPacket(player, "B"); // Kick for malformed or suspect packet
+            wrapper = new WrapperPlayClientPlayerPositionAndRotation(event);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return;
+        }
+
+        // Extract movement coordinates and orientation angles from the packet.
+        final double x = wrapper.getPosition().getX();
+        final double y = wrapper.getPosition().getY();
+        final double z = wrapper.getPosition().getZ();
+        final float yaw = wrapper.getYaw();
+        final float pitch = wrapper.getPitch();
+        final boolean onGround = wrapper.isOnGround();
+
+        // Offload validation and timing logic to a background thread to avoid blocking the main server thread.
+        executorService.execute(() -> {
+            try {
+                // Validate the coordinates and rotation using anti-cheat logic.
+                // This typically checks for invalid values like NaN, infinity, or extreme out-of-bounds inputs.
+                if (!BadPacketsA.isValid(player, x, y, z, yaw, pitch)) {
+                    // If validation fails, kick the player with a predefined message.
+                    KickMessages.kickPlayerForInvalidPacket(player, "B");
+                    return;
+                }
+            } catch (Exception e) {
+                // If validation throws an exception, log it and skip further processing.
+                e.printStackTrace();
                 return;
             }
 
-            // If a speed check exists for this player, route the position to it
-            SpeedCheckA speedCheckA = speedCheckMap.get(playerUUID);
-            if (speedCheckA != null) {
-                speedCheckA.handlePosition(player, x, y, z);
-            }
-        } catch (Exception e) {
-            e.printStackTrace(); // Fail safely and log diagnostic info
-        }
-        long currentTime = System.currentTimeMillis(); // or nanoTime for precision
-        CLARA.getInstance().getTimer().onMovementPacket(player.getUniqueId(), currentTime);
-
-        // Log raw position data for auxiliary systems (e.g., packet history or outlier detection)
-        PlayerData playerData = CLARA.getPlayerData(playerUUID);
-        playerData.addPosition(x, y, z);
-
-        VelocityCheckA velocityCheck = VelocityCheckStorage.get(playerUUID);
-        if (velocityCheck != null) {
-            velocityCheck.addPosition(x, y, z);
-        }
-
+            // Record the timestamp of this movement packet.
+            // This is used by timing-based checks to detect anomalies like speed hacks or teleportation.
+            long currentTime = System.currentTimeMillis();
+            CLARA.getInstance().getTimer().onMovementPacket(playerUUID, currentTime);
+        });
     }
 }

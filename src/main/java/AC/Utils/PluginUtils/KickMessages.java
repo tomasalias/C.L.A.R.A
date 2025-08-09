@@ -22,15 +22,24 @@ public class KickMessages {
      * @param packetType The type of invalid packet detected (e.g., "A", "B", "C").
      */
     public static void kickPlayerForInvalidPacket(Player player, String packetType) {
-        // Construct the kick message dynamically using the packet type
-        String kickMessage = ChatColor.RED + "Kicked by " + ChatColor.AQUA + "" + ChatColor.BOLD +
+        // Construct the private message shown to the kicked player
+        String kickMessage = ChatColor.RED + "Kicked by " + ChatColor.AQUA + ChatColor.BOLD +
                 "[Moderator] C.L.A.R.A: " + ChatColor.RED + "InvalidPacket " + packetType;
 
-        // Schedule the task to kick the player on the main server thread using CLARA.getInstance()
+        // Construct the public broadcast message shown to all players in chat
+        String broadcastMessage = ChatColor.DARK_GRAY + "[" + ChatColor.AQUA + "CLARA" + ChatColor.DARK_GRAY + "] " +
+                ChatColor.YELLOW + "Player " + ChatColor.WHITE + player.getName() +
+                ChatColor.YELLOW + " was kicked for bad packet " + ChatColor.RED + packetType;
+
+        // Schedule the kick and broadcast to run on the main server thread
         new BukkitRunnable() {
             @Override
             public void run() {
+                // Kick the offending player with the constructed message
                 player.kickPlayer(kickMessage);
+
+                // Broadcast the event to all players for transparency
+                org.bukkit.Bukkit.broadcastMessage(broadcastMessage);
             }
         }.runTask(CLARA.getInstance());
     }
