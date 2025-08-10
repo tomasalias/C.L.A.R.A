@@ -52,7 +52,7 @@ public final class CLARA extends JavaPlugin {
         ServerListenerRegistrar.registerServerPacketListeners(executorService);
 
         // 2) InteractEntity listener for boat click exemptions
-        InteractEntity interactEntity = new InteractEntity(executorService,playerOpStorage);
+        InteractEntity interactEntity = new InteractEntity(playerOpStorage);
         PacketEvents.getAPI().getEventManager().registerListener(interactEntity);
 
         // 3) Register event listeners and inject all required resources

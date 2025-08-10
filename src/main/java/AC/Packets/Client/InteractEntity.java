@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 
 /**
  * This class listens for INTERACT_ENTITY packets sent by clients.
@@ -37,19 +36,14 @@ public class InteractEntity extends PacketListenerAbstract {
     // Tracks recent boat interactions to detect spam or exploit behavior.
     private final Map<UUID, Long> recentBoatClicks = new ConcurrentHashMap<>();
 
-    // Executor for running logic asynchronously.
-    private final ExecutorService executorService;
-
     /**
      * Constructor sets up the listener with highest priority.
      * This ensures our logic runs before other plugins or systems.
      *
-     * @param executorService Thread pool for async execution.
      * @param playerOpStorage Utility to check operator status.
      */
-    public InteractEntity(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
+    public InteractEntity(PlayerOpStorage playerOpStorage) {
         super(PacketListenerPriority.HIGHEST);
-        this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }
 
@@ -84,41 +78,38 @@ public class InteractEntity extends PacketListenerAbstract {
             return; // Skip validation for operators.
         }
 
-        // Run logic asynchronously to avoid blocking the main server thread.
-        executorService.execute(() -> {
-            // Wrap the raw packet to extract structured data.
-            WrapperPlayClientInteractEntity interactWrapper = new WrapperPlayClientInteractEntity(event);
+        // Wrap the raw packet to extract structured data.
+        WrapperPlayClientInteractEntity interactWrapper = new WrapperPlayClientInteractEntity(event);
 
-            // Extract the entity ID being interacted with.
-            int entityID = interactWrapper.getEntityId();
+        // Extract the entity ID being interacted with.
+        int entityID = interactWrapper.getEntityId();
 
-            // Extract the type of interaction (e.g., ATTACK, INTERACT).
-            WrapperPlayClientInteractEntity.InteractAction action = interactWrapper.getAction();
+        // Extract the type of interaction (e.g., ATTACK, INTERACT).
+        WrapperPlayClientInteractEntity.InteractAction action = interactWrapper.getAction();
 
-            // Extract the target vector (used for INTERACT_AT).
-            Optional<Vector3f> target = interactWrapper.getTarget();
+        // Extract the target vector (used for INTERACT_AT).
+        Optional<Vector3f> target = interactWrapper.getTarget();
 
-            // Check if the player was sneaking during the interaction.
-            boolean sneaking = interactWrapper.isSneaking().orElse(false);
+        // Check if the player was sneaking during the interaction.
+        boolean sneaking = interactWrapper.isSneaking().orElse(false);
 
-            // Schedule entity lookup and interaction processing on the main thread.
-            Bukkit.getScheduler().runTask(CLARA.getInstance(), () -> {
-                Entity entity = null;
+        // Schedule entity lookup and interaction processing on the main thread.
+        Bukkit.getScheduler().runTask(CLARA.getInstance(), () -> {
+            Entity entity = null;
 
-                // Search for the entity in the player's world by matching entity ID.
-                for (Entity e : player.getWorld().getEntities()) {
-                    if (e.getEntityId() == entityID) {
-                        entity = e;
-                        break;
-                    }
+            // Search for the entity in the player's world by matching entity ID.
+            for (Entity e : player.getWorld().getEntities()) {
+                if (e.getEntityId() == entityID) {
+                    entity = e;
+                    break;
                 }
+            }
 
-                // If the entity was found, process the interaction.
-                if (entity != null) {
-                    System.out.println("[DEBUG] Found Entity Type: " + entity.getType().name());
-                    processInteract(player, action, target, entity, event);
-                }
-            });
+            // If the entity was found, process the interaction.
+            if (entity != null) {
+                System.out.println("[DEBUG] Found Entity Type: " + entity.getType().name());
+                processInteract(player, action, target, entity, event);
+            }
         });
     }
 

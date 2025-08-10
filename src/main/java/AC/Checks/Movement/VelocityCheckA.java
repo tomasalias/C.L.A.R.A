@@ -1,39 +1,25 @@
 package AC.Checks.Movement;
 
-import com.github.retrooper.packetevents.event.PacketReceiveEvent;
-import com.github.retrooper.packetevents.event.PacketSendEvent;
-import com.github.retrooper.packetevents.util.Vector3d;
-import org.bukkit.entity.Player;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.logging.Logger;
-
 public class VelocityCheckA {
-
-    private final UUID playerUUID;
-    private static final Logger logger = Logger.getLogger("AC");
-    private final List<Vector3d> recentPositions = new ArrayList<>();
-
-    public VelocityCheckA(UUID playerUUID) {
-        this.playerUUID = playerUUID;
-        logger.info("VelocityCheckA instantiated for: " + playerUUID);
-    }
-
-    public void logTrigger() {
-        logger.info("VelocityCheckA is working for: " + playerUUID);
-    }
-
-    public void addPosition(double x, double y, double z) {
-        recentPositions.add(new Vector3d(x, y, z));
-    }
-
-    public void EntityVelocitySent(Player player, Vector3d velocity, int entityId) {
-        logger.info("VelocityCheckA captured velocity for " + player.getName() +
-                " → X: " + velocity.x + ", Y: " + velocity.y + ", Z: " + velocity.z +
-                " [Entity ID: " + entityId + "]");
-
-    }
-
 }
+
+// VelocityCheckA validates whether a player properly responded to server-side velocity updates.
+// It intercepts the SetEntityVelocity packet and, if the target is a player, records:
+// - The velocity vector sent by the server
+// - The player's position at the time of packet dispatch
+
+// Using the player's average ping, we estimate when the client will actually receive and apply the velocity.
+// From that point onward, we monitor incoming position packets until we observe movement that occurs
+// after the estimated reception time.
+
+// We then compare the player's position before and after the velocity should have been applied,
+// and determine whether the movement aligns with the expected velocity vector.
+
+// Additional considerations:
+// - The player's existing momentum (server-side velocity) may dampen or override the applied velocity.
+//   This must be accounted for to avoid false positives.
+// - The check should support configurable thresholds for deviation tolerance.
+// - Future extensions may include:
+//   - Terrain-aware dampening (e.g., cobwebs, water)
+//   - Knockback modifiers (e.g., enchantments, potion effects)
+//   - Debug logging for packet timing, predicted vs actual movement, and velocity blending

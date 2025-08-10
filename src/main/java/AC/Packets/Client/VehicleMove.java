@@ -1,6 +1,7 @@
 package AC.Packets.Client;
 
 import AC.Packets.BadPackets.BadPacketsG;
+import AC.Utils.CheckUtils.FastMath;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
@@ -86,12 +87,22 @@ public class VehicleMove extends PacketListenerAbstract {
         final double z = vehicleMoveWrapper.getPosition().getZ();
         final float yaw = vehicleMoveWrapper.getYaw();
         final float pitch = vehicleMoveWrapper.getPitch();
+        // Normalize yaw to ensure it's within expected bounds (e.g., -180 to 180 degrees).
+        final float normalizedYaw = FastMath.normalizeAngle(vehicleMoveWrapper.getYaw());
+        // Update the wrapper with the normalized yaw value.
+        vehicleMoveWrapper.setYaw(normalizedYaw);
+
+
+        System.out.println("[VEHICLE_MOVE DEBUG] Player: " + player.getName());
+        System.out.println("  Position: X=" + x + ", Y=" + y + ", Z=" + z);
+        System.out.println("  Rotation: Yaw=" + normalizedYaw + ", Pitch=" + pitch);
+
 
         // Offload validation logic to a background thread to avoid blocking the main server thread.
         executorService.execute(() -> {
             // Validate the vehicle movement using anti-cheat logic.
             // This typically checks for impossible or manipulated values.
-            if (!BadPacketsG.isValid(x, y, z, yaw, pitch)) {
+            if (!BadPacketsG.isValid(x, y, z, normalizedYaw, pitch)) {
                 // If validation fails, kick the player with a predefined message.
                 KickMessages.kickPlayerForInvalidPacket(player, "G");
             }

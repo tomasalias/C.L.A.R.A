@@ -32,8 +32,6 @@ public class BadPacketsG {
      * @return true if all values are finite and within bounds; false otherwise
      */
     public static boolean isValid(double x, double y, double z, float yaw, float pitch) {
-        System.out.println("[DEBUG] Starting validation for position and orientation.");
-        System.out.println("[DEBUG] Received values -> x: " + x + ", y: " + y + ", z: " + z + ", yaw: " + yaw + ", pitch: " + pitch);
 
         // Check if all values are finite (not NaN or Infinity)
         boolean xFinite = Double.isFinite(x);
@@ -42,23 +40,18 @@ public class BadPacketsG {
         boolean yawFinite = Float.isFinite(yaw);
         boolean pitchFinite = Float.isFinite(pitch);
 
-        System.out.println("[DEBUG] Finite checks -> x: " + xFinite + ", y: " + yFinite + ", z: " + zFinite + ", yaw: " + yawFinite + ", pitch: " + pitchFinite);
 
         if (!xFinite || !yFinite || !zFinite || !yawFinite || !pitchFinite) {
-            System.out.println("[ERROR] Invalid position or orientation: Non-finite value detected.");
             return false;
         }
 
         // Check if the values fall within the defined bounds
         boolean withinBounds = isWithinBounds(x, y, z, yaw, pitch);
-        System.out.println("[DEBUG] Bounds check result: " + withinBounds);
 
         if (!withinBounds) {
-            System.out.println("[ERROR] Out of bounds: x=" + x + ", y=" + y + ", z=" + z + ", yaw=" + yaw + ", pitch=" + pitch);
             return false;
         }
 
-        System.out.println("[DEBUG] Validation passed.");
         return true;
     }
 
@@ -78,9 +71,6 @@ public class BadPacketsG {
         boolean zValid = z >= MIN_VALID_POSITION && z <= MAX_VALID_POSITION;
         boolean pitchValid = pitch >= MIN_VALID_PITCH && pitch <= MAX_VALID_PITCH;
         boolean yawValid = yaw >= MIN_VALID_YAW && yaw <= MAX_VALID_YAW;
-
-        System.out.println("[DEBUG] Bound checks -> x: " + xValid + ", y: " + yValid + ", z: " + zValid + ", pitch: " + pitchValid + ", yaw: " + yawValid);
-
         return xValid && yValid && zValid && pitchValid && yawValid;
     }
 }

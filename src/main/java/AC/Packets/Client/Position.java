@@ -98,26 +98,5 @@ public class Position extends PacketListenerAbstract {
         final double z = wrapper.getPosition().getZ();
         final boolean onGround = wrapper.isOnGround();
 
-        // To avoid blocking the main server thread, we offload movement validation and timing logic to a background thread.
-        executorService.execute(() -> {
-            try {
-                // Validate the coordinates using anti-cheat logic.
-                // This typically checks for invalid values like NaN, infinity, or extreme out-of-bounds positions.
-                if (!BadPacketsB.isValid(x, y, z)) {
-                    // If the coordinates are invalid, we kick the player with a predefined message.
-                    KickMessages.kickPlayerForInvalidPacket(player, "B");
-                    return;
-                }
-            } catch (Exception e) {
-                // If validation throws an exception, we log it and skip further processing.
-                e.printStackTrace();
-                return;
-            }
-
-            // Record the timestamp of this movement packet.
-            // This is used by timing-based checks to detect anomalies like speed hacks or teleportation.
-            long currentTime = System.currentTimeMillis();
-            CLARA.getInstance().getTimer().onMovementPacket(playerUUID, currentTime);
-        });
     }
 }

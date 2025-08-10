@@ -2,6 +2,7 @@ package AC.Packets.Client;
 
 import AC.CLARA;
 import AC.Packets.BadPackets.BadPacketsA;
+import AC.Utils.CheckUtils.FastMath;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
@@ -96,14 +97,20 @@ public class PositionLook extends PacketListenerAbstract {
         final float pitch = wrapper.getPitch();
         final boolean onGround = wrapper.isOnGround();
 
+        // Normalize yaw to ensure it's within expected bounds (e.g., -180 to 180 degrees).
+        final float normalizedYaw = FastMath.normalizeAngle(wrapper.getYaw());
+        // Update the wrapper with the normalized yaw value.
+        wrapper.setYaw(normalizedYaw);
+
+
         // Offload validation and timing logic to a background thread to avoid blocking the main server thread.
         executorService.execute(() -> {
             try {
                 // Validate the coordinates and rotation using anti-cheat logic.
                 // This typically checks for invalid values like NaN, infinity, or extreme out-of-bounds inputs.
-                if (!BadPacketsA.isValid(player, x, y, z, yaw, pitch)) {
+                if (!BadPacketsA.isValid(player, x, y, z,normalizedYaw, pitch)) {
                     // If validation fails, kick the player with a predefined message.
-                    KickMessages.kickPlayerForInvalidPacket(player, "B");
+                    KickMessages.kickPlayerForInvalidPacket(player, "A");
                     return;
                 }
             } catch (Exception e) {
@@ -112,10 +119,6 @@ public class PositionLook extends PacketListenerAbstract {
                 return;
             }
 
-            // Record the timestamp of this movement packet.
-            // This is used by timing-based checks to detect anomalies like speed hacks or teleportation.
-            long currentTime = System.currentTimeMillis();
-            CLARA.getInstance().getTimer().onMovementPacket(playerUUID, currentTime);
         });
     }
 }

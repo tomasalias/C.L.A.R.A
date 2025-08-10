@@ -40,7 +40,7 @@ public final class ListenerRegistrar {
         PacketEvents.getAPI().getEventManager().registerListener(new HeldItemSlot(executorService,playerOpStorage));
 
         // Register a packet listener for interactions with entities
-        PacketEvents.getAPI().getEventManager().registerListener(new InteractEntity(executorService,playerOpStorage));
+        PacketEvents.getAPI().getEventManager().registerListener(new InteractEntity(playerOpStorage));
 
         // Register a packet listener for player look direction updates
         PacketEvents.getAPI().getEventManager().registerListener(new Look(executorService,playerOpStorage));
