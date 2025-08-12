@@ -42,7 +42,7 @@ public class BlockPlace extends PacketListenerAbstract {
      * @param playerOpStorage Utility to check operator status.
      */
     public BlockPlace(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
-        super(PacketListenerPriority.HIGHEST);
+        super(PacketListenerPriority.HIGH);
         this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }

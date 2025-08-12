@@ -26,4 +26,5 @@ public class ReachCheckA {
  * - Pose-aware ray origin (e.g., crouching, swimming)
  * - Debug logging for ray origin, direction, and intersection point
  * - Future extensibility for reach modifiers (e.g., knockback, sprinting, potion effects)
+ * - we should also have a look at time which will return the yaw and pitch that the player was looking at the time
  */

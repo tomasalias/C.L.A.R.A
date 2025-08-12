@@ -7,7 +7,7 @@ import AC.Commands.acping;
 
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.Listeners.RespawnListener;
-import AC.Utils.PluginUtils.ListenerRegistrar;
+import AC.Packets.ListenerRegistrar;
 import AC.Utils.PluginUtils.Messages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
 import AC.Utils.PluginUtils.ServerListenerRegistrar;

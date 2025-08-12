@@ -42,7 +42,7 @@ public class Position extends PacketListenerAbstract {
      * @param playerOpStorage Utility to check if a player is an operator.
      */
     public Position(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
-        super(PacketListenerPriority.HIGHEST); // Ensures this listener runs before others
+        super(PacketListenerPriority.HIGH); // Ensures this listener runs before others
         this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }

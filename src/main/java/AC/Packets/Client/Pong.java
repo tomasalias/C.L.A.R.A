@@ -23,7 +23,7 @@ public class Pong extends PacketListenerAbstract {
      * This ensures we process the packet before other systems.
      */
     public Pong() {
-        super(PacketListenerPriority.HIGHEST);
+        super(PacketListenerPriority.HIGH);
     }
 
     /**

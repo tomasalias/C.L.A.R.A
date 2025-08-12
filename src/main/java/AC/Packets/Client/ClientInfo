@@ -1,0 +1,2 @@
+This Folder is mainly a back up of each handle method for each packettype.
+it is more efficient to have 1 PacketListener with the highest priority and have a case block present inside ClientPacketListener

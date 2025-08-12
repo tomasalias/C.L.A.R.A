@@ -43,7 +43,7 @@ public class InteractEntity extends PacketListenerAbstract {
      * @param playerOpStorage Utility to check operator status.
      */
     public InteractEntity(PlayerOpStorage playerOpStorage) {
-        super(PacketListenerPriority.HIGHEST);
+        super(PacketListenerPriority.HIGH);
         this.playerOpStorage = playerOpStorage;
     }
 

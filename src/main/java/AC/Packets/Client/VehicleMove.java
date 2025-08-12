@@ -40,7 +40,7 @@ public class VehicleMove extends PacketListenerAbstract {
      * @param playerOpStorage Utility to check operator status.
      */
     public VehicleMove(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
-        super(PacketListenerPriority.HIGHEST);
+        super(PacketListenerPriority.HIGH);
         this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }

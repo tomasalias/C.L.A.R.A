@@ -38,7 +38,7 @@ public class SteerVehicle extends PacketListenerAbstract {
      * @param playerOpStorage Utility to check operator status.
      */
     public SteerVehicle(ExecutorService executorService, PlayerOpStorage playerOpStorage) {
-        super(PacketListenerPriority.HIGHEST);
+        super(PacketListenerPriority.HIGH);
         this.executorService = executorService;
         this.playerOpStorage = playerOpStorage;
     }
