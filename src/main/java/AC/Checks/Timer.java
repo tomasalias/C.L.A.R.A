@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 
 public class Timer {
 
@@ -16,6 +17,20 @@ public class Timer {
     // Stores packet receive timestamps per player
     // LinkedList is used for fast append and traversal; ConcurrentHashMap ensures thread safety
     private final Map<UUID, LinkedList<Long>> timestampMap = new ConcurrentHashMap<>();
+
+    // Thread pool for offloading analysis logic
+    // This prevents blocking the main thread with math-heavy operations
+    private final ExecutorService executorService;
+
+    /**
+     * Constructor for Timer check.
+     * Accepts a thread pool to offload analysis logic for better performance.
+     *
+     * @param executorService Shared thread pool from plugin main class
+     */
+    public Timer(ExecutorService executorService) {
+        this.executorService = executorService;
+    }
 
     /**
      * Called from PositionLook when a movement packet is received.
@@ -40,7 +55,13 @@ public class Timer {
         // Once full, apply logic
         // We analyze the batch and then clear it to prepare for the next window
         if (timestamps.size() == MAX_TIMESTAMPS) {
-            analyzeTimestamps(player, playerUUID, timestamps, playerData);
+            // Copy timestamps to avoid mutation issues during async execution
+            List<Long> timestampsCopy = new ArrayList<>(timestamps);
+
+            // Offload analysis to thread pool
+            // This keeps packet handling fast and avoids blocking the main thread
+            executorService.submit(() -> analyzeTimestamps(player, playerUUID, timestampsCopy, playerData));
+
             timestamps.clear(); // Reset for next batch
         }
     }
@@ -48,6 +69,11 @@ public class Timer {
     /**
      * Analyzes ping-adjusted deltas between consecutive timestamps.
      * This is the core of the Timer check: it estimates tick intervals and flags suspiciously fast ones.
+     *
+     * This method is executed asynchronously via the thread pool.
+     * It is safe to run off the main thread because:
+     * - All math is local and read-only
+     * - KickMessages handles thread safety internally
      *
      * @param player      The Bukkit Player object (used for kicking if needed)
      * @param playerUUID  UUID of the player (for logging/debugging)
@@ -76,6 +102,7 @@ public class Timer {
             long adjustedPrev = timestamps.get(i - 1) - (long) averagePing;
             long adjustedCurr = timestamps.get(i) - (long) averagePing;
             long delta = adjustedCurr - adjustedPrev;
+
             // Skip deltas that are too large (likely caused by lag spikes or server hiccups)
             if (delta > maxDelta) {
                 continue;
@@ -118,3 +145,4 @@ public class Timer {
 // - Integrate with broader violation tracking system for better context
 // - Make thresholds configurable via plugin config
 // - Add verbose logging toggle for dev environments
+// - Add optional rate limiting or batching to avoid thread pool saturation on large servers

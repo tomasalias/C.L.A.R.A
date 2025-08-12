@@ -39,7 +39,7 @@ public final class CLARA extends JavaPlugin {
         playerOpStorage = new PlayerOpStorage();
         playerRespawnMap = new ConcurrentHashMap<>();
         playerDataMap = new ConcurrentHashMap<>();
-        timer = new Timer();
+        timer = new Timer(executorService);
 
         // Command registration
         this.getCommand("acping").setExecutor(new acping());
