@@ -8,141 +8,167 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
+/**
+ * Timer check to detect abnormal packet rates (timer cheats).
+ *
+ * This class:
+ *  - Records timestamps of movement packets in sliding windows.
+ *  - Computes ping-normalized deltas between successive packets.
+ *  - Filters out lag spikes and calculates the mean delta per window.
+ *  - Stores each window's mean separately.
+ *  - Once 5 means are collected, averages them and checks against threshold.
+ *  - Triggers a flag/kick only if the averaged mean is below threshold.
+ */
 public class Timer {
 
-    // Max number of timestamps to store per player before analysis
-    // This defines the size of the sliding window used to detect abnormal tick rates
+    // Number of timestamps to collect before analysis (defines window size)
     private static final int MAX_TIMESTAMPS = 20;
 
-    // Stores packet receive timestamps per player
-    // LinkedList is used for fast append and traversal; ConcurrentHashMap ensures thread safety
+    // Number of batch means to collect before evaluating
+    private static final int REQUIRED_MEANS = 5;
+
+    // If a ping-adjusted delta exceeds this, treat it as a lag spike and skip it
+    private static final long IGNORE_DELTA = 60L;
+
+    // If the averaged mean of 5 batches falls below this, we consider it cheating
+    private static final double AVERAGE_KICK_THRESHOLD = 49.50;
+
+    // Thread-safe map: player UUID → list of raw packet timestamps
     private final Map<UUID, LinkedList<Long>> timestampMap = new ConcurrentHashMap<>();
 
-    // Thread pool for offloading analysis logic
-    // This prevents blocking the main thread with math-heavy operations
+    // Thread-safe map: player UUID → list of recent batch means
+    private final Map<UUID, List<Double>> batchMeansMap = new ConcurrentHashMap<>();
+
+    // Shared thread pool for offloading analysis off the main server thread
     private final ExecutorService executorService;
 
+    // Debug mode toggle: enables/disables print statements
+    private boolean debugMode = false;
+
     /**
-     * Constructor for Timer check.
-     * Accepts a thread pool to offload analysis logic for better performance.
+     * Constructor.
      *
-     * @param executorService Shared thread pool from plugin main class
+     * @param executorService Shared ExecutorService from plugin main class
      */
     public Timer(ExecutorService executorService) {
         this.executorService = executorService;
     }
 
     /**
-     * Called from PositionLook when a movement packet is received.
-     * This method records the timestamp of the packet for the given player.
-     * Once enough timestamps are collected (MAX_TIMESTAMPS), it triggers analysis.
+     * Enable or disable debug mode.
      *
-     * @param player      The Bukkit Player object (used for kicking if needed)
-     * @param playerUUID  UUID of the player (used as key in timestampMap)
-     * @param timestamp   Time the packet was received (System.currentTimeMillis)
-     * @param playerData  PlayerData object containing ping and other metadata
+     * @param enabled true to enable debug output, false to disable
+     */
+    public void setDebugMode(boolean enabled) {
+        this.debugMode = enabled;
+    }
+
+    /**
+     * Called whenever a movement packet arrives for a player.
+     *
+     * We record the packet's arrival time in a per-player list.
+     * Once we have MAX_TIMESTAMPS entries, we snapshot & clear the list,
+     * then offload the analysis to the thread pool to keep tick handling fast.
+     *
+     * @param player      Bukkit Player instance (used for kicking/flagging)
+     * @param playerUUID  Unique ID for indexing our maps
+     * @param timestamp   System.currentTimeMillis() of packet receipt
+     * @param playerData  Contains metadata like current ping
      */
     public void recordPacket(Player player, UUID playerUUID, long timestamp, PlayerData playerData) {
-        // Retrieve or initialize the timestamp list for this player
-        LinkedList<Long> timestamps = timestampMap.computeIfAbsent(playerUUID, id -> new LinkedList<>());
+        LinkedList<Long> timestamps = timestampMap
+                .computeIfAbsent(playerUUID, id -> new LinkedList<>());
 
-        // Only record if we haven't reached the max
-        // This prevents overfilling and ensures consistent batch size for analysis
         if (timestamps.size() < MAX_TIMESTAMPS) {
             timestamps.add(timestamp);
         }
 
-        // Once full, apply logic
-        // We analyze the batch and then clear it to prepare for the next window
         if (timestamps.size() == MAX_TIMESTAMPS) {
-            // Copy timestamps to avoid mutation issues during async execution
-            List<Long> timestampsCopy = new ArrayList<>(timestamps);
-
-            // Offload analysis to thread pool
-            // This keeps packet handling fast and avoids blocking the main thread
-            executorService.submit(() -> analyzeTimestamps(player, playerUUID, timestampsCopy, playerData));
-
-            timestamps.clear(); // Reset for next batch
+            List<Long> snapshot = new ArrayList<>(timestamps);
+            executorService.submit(() ->
+                    analyzeTimestamps(player, playerUUID, snapshot, playerData)
+            );
+            timestamps.clear();
         }
     }
 
     /**
-     * Analyzes ping-adjusted deltas between consecutive timestamps.
-     * This is the core of the Timer check: it estimates tick intervals and flags suspiciously fast ones.
+     * Analyze a batch of timestamps to determine if the player is cheating.
      *
-     * This method is executed asynchronously via the thread pool.
-     * It is safe to run off the main thread because:
-     * - All math is local and read-only
-     * - KickMessages handles thread safety internally
+     * Steps:
+     *  1. Normalize timestamps by subtracting average ping.
+     *  2. Compute deltas between each consecutive pair.
+     *  3. Filter out any delta > IGNORE_DELTA (lag spikes).
+     *  4. Calculate the mean of the remaining deltas.
+     *  5. Store the batch mean in a per-player buffer.
+     *  6. Once 5 batch means are collected, average them.
+     *  7. If the averaged mean < AVERAGE_KICK_THRESHOLD → broadcast a flag/kick.
      *
-     * @param player      The Bukkit Player object (used for kicking if needed)
-     * @param playerUUID  UUID of the player (for logging/debugging)
-     * @param timestamps  List of packet timestamps (size == MAX_TIMESTAMPS)
-     * @param playerData  PlayerData object containing ping and other metadata
+     * Thread Safety:
+     *  - All local data (lists, variables) is confined to this method.
+     *  - batchMeansMap uses synchronized lists via ConcurrentHashMap.
+     *  - KickMessages is assumed to handle any additional synchronization.
+     *
+     * @param player      Bukkit Player instance
+     * @param playerUUID  Player’s UUID (key in our history maps)
+     * @param timestamps  Exactly MAX_TIMESTAMPS entries of raw System.currentTimeMillis()
+     * @param playerData  Provides getCurrentPing() for latency normalization
      */
-    private void analyzeTimestamps(Player player, UUID playerUUID, List<Long> timestamps, PlayerData playerData) {
-        // Retrieve average ping for this player
-        // This is subtracted from each timestamp to normalize for latency
-        double averagePing = playerData.getCurrentPing();
+    private void analyzeTimestamps(Player player,
+                                   UUID playerUUID,
+                                   List<Long> timestamps,
+                                   PlayerData playerData) {
+        long averagePing = (long) playerData.getCurrentPing();
+        List<Long> validDeltas = new ArrayList<>();
 
-        // Tracks how many consecutive low deltas we've seen
-        // We only kick if we see 3 in a row, to avoid false positives from jitter
-        int consecutiveLow = 0;
-
-        // Thresholds for analysis
-        // threshold: minimum tick interval (after ping adjustment) considered suspicious
-        // maxDelta: upper bound for deltas we consider valid (helps skip outliers)
-        final long threshold = 45L;
-        final long maxDelta = 55L;
-
-        // Iterate through timestamp pairs to compute deltas
         for (int i = 1; i < timestamps.size(); i++) {
-            // Adjust timestamps by subtracting ping
-            // This gives us a better estimate of actual client tick timing
-            long adjustedPrev = timestamps.get(i - 1) - (long) averagePing;
-            long adjustedCurr = timestamps.get(i) - (long) averagePing;
-            long delta = adjustedCurr - adjustedPrev;
+            long prev = timestamps.get(i - 1) - averagePing;
+            long current = timestamps.get(i) - averagePing;
+            long delta = current - prev;
 
-            // Skip deltas that are too large (likely caused by lag spikes or server hiccups)
-            if (delta > maxDelta) {
-                continue;
+            if (debugMode) {
+                System.out.println("[Timer] Raw delta: " + delta);
             }
 
-            // If delta is suspiciously low, increment counter
-            // If we hit 3 in a row, it's likely a timer cheat
-            if (delta <= threshold) {
-                consecutiveLow++;
-                if (consecutiveLow == 3) {
-                    // Kick the player with a predefined message
-                    // This message should explain the reason clearly to the player
-                    KickMessages.kickPlayerForInvalidPacket(player, "Timer");
-                    return;
-                }
-            } else {
-                // Reset counter if delta is valid but not suspicious
-                // This ensures we only act on sustained abnormal behavior
-                consecutiveLow = 0;
+            if (delta <= IGNORE_DELTA) {
+                validDeltas.add(delta);
+            }
+        }
+
+        if (validDeltas.isEmpty()) {
+            return;
+        }
+
+        long sum = 0;
+        for (long d : validDeltas) {
+            sum += d;
+        }
+        double batchMean = (double) sum / validDeltas.size();
+
+        if (debugMode) {
+            System.out.println("[Timer] Batch mean: " + batchMean);
+        }
+
+        List<Double> batchMeans = batchMeansMap
+                .computeIfAbsent(playerUUID, id -> new ArrayList<>());
+        batchMeans.add(batchMean);
+
+        if (batchMeans.size() == REQUIRED_MEANS) {
+            double total = 0;
+            for (double m : batchMeans) {
+                total += m;
+            }
+            double averagedMean = total / REQUIRED_MEANS;
+
+            if (debugMode) {
+                System.out.println("[Timer] Averaged mean of 5 batches: " + averagedMean);
+            }
+
+            batchMeans.clear();
+
+            if (averagedMean < AVERAGE_KICK_THRESHOLD) {
+                KickMessages.broadcastFlagForTimer(player, averagedMean);
             }
         }
     }
 }
-
-// Timer detects abnormal client tick rates by analyzing packet timing.
-// It records the timestamps of incoming movement-related packets (e.g., position, position+look),
-// then subtracts the player's average ping to estimate their effective tick interval.
-//
-// Under normal conditions, this interval should hover around 50ms (i.e., 20 ticks per second).
-// If the interval is consistently lower—after accounting for latency—it may indicate
-// the use of a "timer" cheat, which speeds up the client's game loop to gain an unfair advantage.
-//
-// This check should include:
-// - Smoothing logic to avoid false positives from jitter
-// - Configurable thresholds for minimum tick interval
-//
-// Future improvements:
-// - Use exponential moving average for ping smoothing
-// - Add a flag for if a PositionPacket is recieved if so run on the data we have collected
-// - Integrate with broader violation tracking system for better context
-// - Make thresholds configurable via plugin config
-// - Add verbose logging toggle for dev environments
-// - Add optional rate limiting or batching to avoid thread pool saturation on large servers

@@ -2,6 +2,7 @@ package AC.Utils.PluginUtils;
 
 import AC.CLARA;
 import lombok.experimental.UtilityClass;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -84,6 +85,29 @@ public class KickMessages {
             }
         }.runTask(CLARA.getInstance());
     }
+
+    /**
+     * Broadcasts a CLARA‐formatted flag for timer violations.
+     *
+     * @param player The offending player
+     * @param delta  The mean delta in milliseconds
+     */
+    public static void broadcastFlagForTimer(Player player, double delta) {
+        String msg = ChatColor.DARK_GRAY + "["
+                + ChatColor.AQUA + "CLARA"
+                + ChatColor.DARK_GRAY + "] "
+                + ChatColor.WHITE + player.getName()
+                + ChatColor.YELLOW + " flagged TimerA "
+                + ChatColor.RED + String.format("%.3f", delta) + "ms";
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                Bukkit.broadcastMessage(msg);
+            }
+        }.runTask(CLARA.getInstance());
+    }
+
 
     private static boolean isNumeric(String s) {
         try {

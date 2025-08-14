@@ -550,6 +550,7 @@ public class ClientPacketListener extends PacketListenerAbstract {
     }
 
     private void handlePosition(Player player, PacketReceiveEvent event) {
+        long timestamp = System.currentTimeMillis();
         // Retrieve the player's unique identifier for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 

@@ -1,5 +1,6 @@
 package AC.Utils.CheckUtils;
 
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerPositionAndRotation;
 import lombok.Getter;
 import lombok.Setter;
 import java.util.LinkedList;
@@ -22,10 +23,13 @@ public class PlayerData {
 
     // List of ping values that will be stored (only keeping the last 50 pings)
     private LinkedList<Long> pingHistory = new LinkedList<>();
-    private static final int MAX_SIZE = 50; // Max number of pings to store
+    private static final int MAX_SIZE = 12; // Max number of pings to store
     private boolean isLoggingActive = false; // Flag to prevent multiple threads from logging ping
     private double lastAveragePing = 0.0; // Last calculated average ping
     private Thread pingLoggingThread = null;
+    // Stores the previous position look packet for comparison
+    private WrapperPlayClientPlayerPositionAndRotation previousPositionLookPacket;
+
 
 
     // Method to record the player's ping value
@@ -79,6 +83,4 @@ public class PlayerData {
         pingLoggingThread = null;
         isLoggingActive = false;
     }
-
-
 }
