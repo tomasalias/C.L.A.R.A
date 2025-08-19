@@ -1,6 +1,8 @@
 package AC.Packets.Client;
 
+import AC.CLARA;
 import AC.Packets.BadPackets.BadPacketsC;
+import AC.Packets.PacketKind;
 import AC.Utils.CheckUtils.FastMath;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
@@ -68,6 +70,8 @@ public class Look extends PacketListenerAbstract {
      * @param event  The packet event containing raw data.
      */
     private void handleLook(Player player, PacketReceiveEvent event) {
+        long ts = System.currentTimeMillis();
+
         UUID playerUUID = player.getUniqueId();
 
         // Check if the player is an operator (admin). Operators are trusted and bypass checks.
@@ -96,6 +100,16 @@ public class Look extends PacketListenerAbstract {
                 // If invalid, kick the player with a predefined message.
                 KickMessages.kickPlayerForInvalidPacket(player, "C");
             }
+            CLARA.getInstance()
+                    .getTimer()
+                    .recordPacket(
+                            player,
+                            player.getUniqueId(),
+                            ts,
+                            CLARA.getPlayerData(player.getUniqueId()),
+                            PacketKind.LOOK
+                    );
+
         });
     }
 }

@@ -2,6 +2,7 @@ package AC.Packets.Client;
 
 import AC.CLARA;
 import AC.Packets.BadPackets.BadPacketsA;
+import AC.Packets.PacketKind;
 import AC.Utils.CheckUtils.FastMath;
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.PluginUtils.KickMessages;
@@ -68,6 +69,7 @@ public class PositionLook extends PacketListenerAbstract {
      * @param event  The packet event containing position and rotation data.
      */
     private void handlePositionAndLook(Player player, PacketReceiveEvent event) {
+        long ts = System.currentTimeMillis();
         // Retrieve the player's UUID for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
@@ -113,12 +115,16 @@ public class PositionLook extends PacketListenerAbstract {
                     return;
                 }
 
-                // Retrieve the player's ping data and pass it to the Timer check.
-                PlayerData playerData = CLARA.getPlayerData(playerUUID);
-                if (playerData != null) {
-                    long timestamp = System.currentTimeMillis();
-                    CLARA.getInstance().getTimer().recordPacket(player,playerUUID, timestamp, playerData);
-                }
+                CLARA.getInstance()
+                        .getTimer()
+                        .recordPacket(
+                                player,
+                                player.getUniqueId(),
+                                ts,
+                                CLARA.getPlayerData(player.getUniqueId()),
+                                PacketKind.POSITION_AND_ROTATION
+                        );
+
 
             } catch (Exception e) {
                 // If validation throws an exception, log it and skip further processing.

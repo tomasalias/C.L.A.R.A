@@ -3,6 +3,7 @@ package AC.Packets.Client;
 import AC.CLARA;
 import AC.Checks.Movement.VelocityCheckA;
 import AC.Packets.BadPackets.BadPacketsB;
+import AC.Packets.PacketKind;
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.PluginUtils.KickMessages;
 import AC.Utils.PluginUtils.PlayerOpStorage;
@@ -70,6 +71,7 @@ public class Position extends PacketListenerAbstract {
      * @param event  The packet event containing position data.
      */
     private void handlePosition(Player player, PacketReceiveEvent event) {
+        long ts = System.currentTimeMillis();
         // Retrieve the player's unique identifier for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
@@ -98,5 +100,14 @@ public class Position extends PacketListenerAbstract {
         final double z = wrapper.getPosition().getZ();
         final boolean onGround = wrapper.isOnGround();
 
+        CLARA.getInstance()
+                .getTimer()
+                .recordPacket(
+                        player,
+                        player.getUniqueId(),
+                        ts,
+                        CLARA.getPlayerData(player.getUniqueId()),
+                        PacketKind.POSITION
+                );
     }
 }

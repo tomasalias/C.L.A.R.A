@@ -1,173 +1,158 @@
 package AC.Checks;
 
+import AC.Packets.PacketKind;
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.PluginUtils.KickMessages;
 import org.bukkit.entity.Player;
 
 import java.util.*;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
-/**
- * Timer check to detect abnormal packet rates (timer cheats).
- *
- * This class:
- *  - Records timestamps of movement packets in sliding windows.
- *  - Computes ping-normalized deltas between successive packets.
- *  - Filters out lag spikes and calculates the mean delta per window.
- *  - Stores each window's mean separately.
- *  - Once 5 means are collected, averages them and checks against threshold.
- *  - Triggers a flag/kick only if the averaged mean is below threshold.
- */
 public class Timer {
 
-    // Number of timestamps to collect before analysis (defines window size)
-    private static final int MAX_TIMESTAMPS = 20;
-
-    // Number of batch means to collect before evaluating
-    private static final int REQUIRED_MEANS = 5;
-
-    // If a ping-adjusted delta exceeds this, treat it as a lag spike and skip it
-    private static final long IGNORE_DELTA = 60L;
-
-    // If the averaged mean of 5 batches falls below this, we consider it cheating
-    private static final double AVERAGE_KICK_THRESHOLD = 49.50;
-
-    // Thread-safe map: player UUID → list of raw packet timestamps
-    private final Map<UUID, LinkedList<Long>> timestampMap = new ConcurrentHashMap<>();
-
-    // Thread-safe map: player UUID → list of recent batch means
-    private final Map<UUID, List<Double>> batchMeansMap = new ConcurrentHashMap<>();
-
-    // Shared thread pool for offloading analysis off the main server thread
-    private final ExecutorService executorService;
-
-    // Debug mode toggle: enables/disables print statements
-    private boolean debugMode = false;
+    // Configuration constants
+    private static final int MAX_TIMESTAMPS = 20;             // Number of packets to collect before analysis
+    private static final int REQUIRED_MEANS = 5;              // Number of batch means needed before flagging
+    private static final long IGNORE_DELTA = 54L;             // Deltas above this are clamped
+    private static final long CLAMPED_DELTA = 50L;            // Clamped value for large deltas
+    private static final double AVERAGE_KICK_THRESH = 49.50;  // Threshold to trigger a kick flag
 
     /**
-     * Constructor.
-     *
-     * @param executorService Shared ExecutorService from plugin main class
+     * Represents a packet with its timestamp and kind.
+     * Used to track timing between packet types.
      */
+    private static class TimedPacket {
+        final long timestamp;
+        final PacketKind kind;
+
+        TimedPacket(long timestamp, PacketKind kind) {
+            this.timestamp = timestamp;
+            this.kind = kind;
+        }
+
+        @Override
+        public String toString() {
+            return "[" + kind + " @ " + timestamp + "]";
+        }
+    }
+
+    // Tracks recent packets per player for timing analysis
+    private final Map<UUID, LinkedList<TimedPacket>> timestampMap = new ConcurrentHashMap<>();
+
+    // Stores recent batch means per player for averaging
+    private final Map<UUID, List<Double>> batchMeansMap = new ConcurrentHashMap<>();
+
+    // Executor for async analysis to avoid blocking main thread
+    private final ExecutorService executorService;
+
     public Timer(ExecutorService executorService) {
         this.executorService = executorService;
     }
 
     /**
-     * Enable or disable debug mode.
-     *
-     * @param enabled true to enable debug output, false to disable
+     * Called whenever a packet is received.
+     * Buffers the packet and triggers analysis once enough are collected.
      */
-    public void setDebugMode(boolean enabled) {
-        this.debugMode = enabled;
-    }
+    public void recordPacket(Player player,
+                             UUID playerUUID,
+                             long timestamp,
+                             PlayerData playerData,
+                             PacketKind kind) {
 
-    /**
-     * Called whenever a movement packet arrives for a player.
-     *
-     * We record the packet's arrival time in a per-player list.
-     * Once we have MAX_TIMESTAMPS entries, we snapshot & clear the list,
-     * then offload the analysis to the thread pool to keep tick handling fast.
-     *
-     * @param player      Bukkit Player instance (used for kicking/flagging)
-     * @param playerUUID  Unique ID for indexing our maps
-     * @param timestamp   System.currentTimeMillis() of packet receipt
-     * @param playerData  Contains metadata like current ping
-     */
-    public void recordPacket(Player player, UUID playerUUID, long timestamp, PlayerData playerData) {
-        LinkedList<Long> timestamps = timestampMap
-                .computeIfAbsent(playerUUID, id -> new LinkedList<>());
+        // Get or create the packet buffer for this player
+        LinkedList<TimedPacket> window =
+                timestampMap.computeIfAbsent(playerUUID, id -> new LinkedList<>());
 
-        if (timestamps.size() < MAX_TIMESTAMPS) {
-            timestamps.add(timestamp);
+        // Add packet if buffer isn't full
+        if (window.size() < MAX_TIMESTAMPS) {
+            window.add(new TimedPacket(timestamp, kind));
         }
 
-        if (timestamps.size() == MAX_TIMESTAMPS) {
-            List<Long> snapshot = new ArrayList<>(timestamps);
+        // Once buffer is full, snapshot and analyze asynchronously
+        if (window.size() == MAX_TIMESTAMPS) {
+            List<TimedPacket> snapshot = new ArrayList<>(window);
             executorService.submit(() ->
                     analyzeTimestamps(player, playerUUID, snapshot, playerData)
             );
-            timestamps.clear();
+            window.clear(); // Reset buffer for next batch
         }
     }
 
     /**
-     * Analyze a batch of timestamps to determine if the player is cheating.
-     *
-     * Steps:
-     *  1. Normalize timestamps by subtracting average ping.
-     *  2. Compute deltas between each consecutive pair.
-     *  3. Filter out any delta > IGNORE_DELTA (lag spikes).
-     *  4. Calculate the mean of the remaining deltas.
-     *  5. Store the batch mean in a per-player buffer.
-     *  6. Once 5 batch means are collected, average them.
-     *  7. If the averaged mean < AVERAGE_KICK_THRESHOLD → broadcast a flag/kick.
-     *
-     * Thread Safety:
-     *  - All local data (lists, variables) is confined to this method.
-     *  - batchMeansMap uses synchronized lists via ConcurrentHashMap.
-     *  - KickMessages is assumed to handle any additional synchronization.
-     *
-     * @param player      Bukkit Player instance
-     * @param playerUUID  Player’s UUID (key in our history maps)
-     * @param timestamps  Exactly MAX_TIMESTAMPS entries of raw System.currentTimeMillis()
-     * @param playerData  Provides getCurrentPing() for latency normalization
+     * Analyzes a batch of packets to detect timer manipulation.
+     * Applies ping compensation, delta filtering, clamping, and averaging.
      */
     private void analyzeTimestamps(Player player,
                                    UUID playerUUID,
-                                   List<Long> timestamps,
+                                   List<TimedPacket> packets,
                                    PlayerData playerData) {
-        long averagePing = (long) playerData.getCurrentPing();
+
+        long avgPing = (long) playerData.getCurrentPing(); // Ping compensation
         List<Long> validDeltas = new ArrayList<>();
 
-        for (int i = 1; i < timestamps.size(); i++) {
-            long prev = timestamps.get(i - 1) - averagePing;
-            long current = timestamps.get(i) - averagePing;
-            long delta = current - prev;
+        // Compute deltas between consecutive packets
+        for (int i = 1; i < packets.size(); i++) {
+            TimedPacket prev = packets.get(i - 1);
+            TimedPacket curr = packets.get(i);
 
-            if (debugMode) {
-                System.out.println("[Timer] Raw delta: " + delta);
+            long prevTime = prev.timestamp - avgPing;
+            long currTime = curr.timestamp - avgPing;
+            long delta = currTime - prevTime;
+
+            // Skip cross-type transitions with small deltas (likely noise)
+            if (prev.kind != curr.kind && delta <= 40L) {
+                continue;
             }
 
-            if (delta <= IGNORE_DELTA) {
-                validDeltas.add(delta);
-            }
+            // Clamp large deltas to avoid skewing mean
+            long accepted = delta > IGNORE_DELTA ? CLAMPED_DELTA : delta;
+            validDeltas.add(accepted);
         }
 
+        // If no valid deltas, skip analysis
         if (validDeltas.isEmpty()) {
             return;
         }
 
-        long sum = 0;
-        for (long d : validDeltas) {
-            sum += d;
-        }
-        double batchMean = (double) sum / validDeltas.size();
+        // Establish a minimum delta floor to reduce timer smoothing artifacts
+        long maxDelta = validDeltas.stream().mapToLong(Long::longValue).max().orElse(CLAMPED_DELTA);
+        long minAllowed = maxDelta - 6;
 
-        if (debugMode) {
-            System.out.println("[Timer] Batch mean: " + batchMean);
-        }
+        // Clamp all deltas below the floor to the floor value
+        List<Long> adjustedDeltas = validDeltas.stream()
+                .map(d -> d < minAllowed ? minAllowed : d)
+                .collect(Collectors.toList());
 
-        List<Double> batchMeans = batchMeansMap
-                .computeIfAbsent(playerUUID, id -> new ArrayList<>());
+        // Compute mean of adjusted deltas
+        double batchMean = adjustedDeltas.stream()
+                .mapToLong(Long::longValue)
+                .average()
+                .orElse(0.0);
+
+        // Track batch means for this player
+        List<Double> batchMeans =
+                batchMeansMap.computeIfAbsent(playerUUID,
+                        id -> Collections.synchronizedList(new ArrayList<>()));
+
         batchMeans.add(batchMean);
 
+        // Once enough means are collected, compute overall average
         if (batchMeans.size() == REQUIRED_MEANS) {
-            double total = 0;
-            for (double m : batchMeans) {
-                total += m;
-            }
+            double total = batchMeans.stream().mapToDouble(d -> d).sum();
             double averagedMean = total / REQUIRED_MEANS;
+            batchMeans.clear(); // Reset for next cycle
 
-            if (debugMode) {
-                System.out.println("[Timer] Averaged mean of 5 batches: " + averagedMean);
-            }
+            // Estimate timer speed as a percentage of expected tick rate
+            double estimatedTimer = (CLAMPED_DELTA / averagedMean) * 100.0;
+            estimatedTimer = Math.round(estimatedTimer * 10.0) / 10.0;
 
-            batchMeans.clear();
-
-            if (averagedMean < AVERAGE_KICK_THRESHOLD) {
-                KickMessages.broadcastFlagForTimer(player, averagedMean);
+            // If timer is running too fast, flag the player
+            if (averagedMean < AVERAGE_KICK_THRESH) {
+                System.out.println("[Timer] Averaged mean below threshold! Flagging player.");
+                KickMessages.broadcastFlagForTimer(player, estimatedTimer);
             }
         }
     }

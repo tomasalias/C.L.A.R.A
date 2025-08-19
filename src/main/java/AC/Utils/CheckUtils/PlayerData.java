@@ -35,7 +35,7 @@ public class PlayerData {
     // Method to record the player's ping value
     public synchronized void setPing(long playerPing) {
         pingHistory.addFirst(playerPing); // Add new ping to the front of the list
-        if (pingHistory.size() > MAX_SIZE) { // If the list exceeds the max size of 50
+        if (pingHistory.size() > MAX_SIZE) { // If the list exceeds the max size
             pingHistory.removeLast(); // Remove the oldest ping value to keep the list size constant
 
             // Trigger the calculation and logging of the average ping

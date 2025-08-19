@@ -488,6 +488,8 @@ public class ClientPacketListener extends PacketListenerAbstract {
     }
 
     private void handleLook(Player player, PacketReceiveEvent event) {
+        long ts = System.currentTimeMillis();
+
         UUID playerUUID = player.getUniqueId();
 
         // Check if the player is an operator (admin). Operators are trusted and bypass checks.
@@ -516,6 +518,16 @@ public class ClientPacketListener extends PacketListenerAbstract {
                 // If invalid, kick the player with a predefined message.
                 KickMessages.kickPlayerForInvalidPacket(player, "C");
             }
+            CLARA.getInstance()
+                    .getTimer()
+                    .recordPacket(
+                            player,
+                            player.getUniqueId(),
+                            ts,
+                            CLARA.getPlayerData(player.getUniqueId()),
+                            PacketKind.LOOK
+                    );
+
         });
     }
 
@@ -550,7 +562,7 @@ public class ClientPacketListener extends PacketListenerAbstract {
     }
 
     private void handlePosition(Player player, PacketReceiveEvent event) {
-        long timestamp = System.currentTimeMillis();
+        long ts = System.currentTimeMillis();
         // Retrieve the player's unique identifier for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
@@ -579,10 +591,19 @@ public class ClientPacketListener extends PacketListenerAbstract {
         final double z = wrapper.getPosition().getZ();
         final boolean onGround = wrapper.isOnGround();
 
+        CLARA.getInstance()
+                .getTimer()
+                .recordPacket(
+                        player,
+                        player.getUniqueId(),
+                        ts,
+                        CLARA.getPlayerData(player.getUniqueId()),
+                        PacketKind.POSITION
+                );
     }
 
     private void handlePositionLook(Player player, PacketReceiveEvent event) {
-        long timestamp = System.currentTimeMillis();
+        long ts = System.currentTimeMillis();
         // Retrieve the player's UUID for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
@@ -628,11 +649,16 @@ public class ClientPacketListener extends PacketListenerAbstract {
                     return;
                 }
 
-                // Retrieve the player's ping data and pass it to the Timer check.
-                PlayerData playerData = CLARA.getPlayerData(playerUUID);
-                if (playerData != null) {
-                    CLARA.getInstance().getTimer().recordPacket(player,playerUUID, timestamp, playerData);
-                }
+                CLARA.getInstance()
+                        .getTimer()
+                        .recordPacket(
+                                player,
+                                player.getUniqueId(),
+                                ts,
+                                CLARA.getPlayerData(player.getUniqueId()),
+                                PacketKind.POSITION_AND_ROTATION
+                        );
+
 
             } catch (Exception e) {
                 // If validation throws an exception, log it and skip further processing.
