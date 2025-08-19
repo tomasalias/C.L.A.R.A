@@ -90,15 +90,15 @@ public class KickMessages {
      * Broadcasts a CLARA‐formatted flag for timer violations.
      *
      * @param player The offending player
-     * @param delta  The mean delta in milliseconds
+     * @param estimatedTimer  The calculted timer Multiplier the client is using
      */
-    public static void broadcastFlagForTimer(Player player, double delta) {
+    public static void broadcastFlagForTimer(Player player, double estimatedTimer) {
         String msg = ChatColor.DARK_GRAY + "["
                 + ChatColor.AQUA + "CLARA"
                 + ChatColor.DARK_GRAY + "] "
                 + ChatColor.WHITE + player.getName()
                 + ChatColor.YELLOW + " flagged TimerA "
-                + ChatColor.RED + String.format("%.3f", delta) + "ms";
+                + ChatColor.RED + String.format("%.1f", estimatedTimer) + "%";
 
         new BukkitRunnable() {
             @Override
