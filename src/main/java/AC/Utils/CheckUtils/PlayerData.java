@@ -1,6 +1,8 @@
 package AC.Utils.CheckUtils;
 
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerPosition;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerPositionAndRotation;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerRotation;
 import lombok.Getter;
 import lombok.Setter;
 import java.util.LinkedList;
@@ -28,7 +30,9 @@ public class PlayerData {
     private double lastAveragePing = 0.0; // Last calculated average ping
     private Thread pingLoggingThread = null;
     // Stores the previous position look packet for comparison
-    private WrapperPlayClientPlayerPositionAndRotation previousPositionLookPacket;
+    private WrapperPlayClientPlayerPosition lastPositionPacket;
+    private WrapperPlayClientPlayerRotation lastRotationPacket;
+    private WrapperPlayClientPlayerPositionAndRotation lastPositionLookPacket;
 
 
 
@@ -82,5 +86,24 @@ public class PlayerData {
         }
         pingLoggingThread = null;
         isLoggingActive = false;
+    }
+    public boolean isSameAsLastPosition(WrapperPlayClientPlayerPosition packet) {
+        if (lastPositionPacket == null) return false;
+        return packet.getPosition().equals(lastPositionPacket.getPosition()) &&
+                packet.isOnGround() == lastPositionPacket.isOnGround();
+    }
+
+    public boolean isSameAsLastRotation(WrapperPlayClientPlayerRotation packet) {
+        if (lastRotationPacket == null) return false;
+        return packet.getYaw() == lastRotationPacket.getYaw() &&
+                packet.getPitch() == lastRotationPacket.getPitch();
+    }
+
+    public boolean isSameAsLastPositionLook(WrapperPlayClientPlayerPositionAndRotation packet) {
+        if (lastPositionLookPacket == null) return false;
+        return packet.getPosition().equals(lastPositionLookPacket.getPosition()) &&
+                packet.getYaw() == lastPositionLookPacket.getYaw() &&
+                packet.getPitch() == lastPositionLookPacket.getPitch() &&
+                packet.isOnGround() == lastPositionLookPacket.isOnGround();
     }
 }

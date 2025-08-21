@@ -508,6 +508,17 @@ public class ClientPacketListener extends PacketListenerAbstract {
         // Extract pitch (vertical look angle).
         final float pitch = wrapper.getPitch();
 
+        // Retrieve player data for packet comparison and tracking.
+        PlayerData data = CLARA.getPlayerData(playerUUID);
+
+        // Check if this packet is identical to the last one.
+        if (data.isSameAsLastRotation(wrapper)) {
+            return; // Skip processing if it's a duplicate.
+        }
+
+        // Store the current packet as the new reference.
+        data.setLastRotationPacket(wrapper);
+
         // Update the wrapper with the normalized yaw value.
         wrapper.setYaw(normalizedYaw);
 
@@ -591,6 +602,18 @@ public class ClientPacketListener extends PacketListenerAbstract {
         final double z = wrapper.getPosition().getZ();
         final boolean onGround = wrapper.isOnGround();
 
+        // Retrieve player data for packet comparison.
+        PlayerData data = CLARA.getPlayerData(playerUUID);
+
+        // Check if this packet is identical to the last one.
+        if (data.isSameAsLastPosition(wrapper)) {
+            return; // Skip processing if it's a duplicate.
+        }
+
+        // Store the current packet as the new reference.
+        data.setLastPositionPacket(wrapper);
+
+
         CLARA.getInstance()
                 .getTimer()
                 .recordPacket(
@@ -604,19 +627,15 @@ public class ClientPacketListener extends PacketListenerAbstract {
 
     private void handlePositionLook(Player player, PacketReceiveEvent event) {
         long ts = System.currentTimeMillis();
-        // Retrieve the player's UUID for tracking and caching.
         UUID playerUUID = player.getUniqueId();
 
         // Check if the player is an operator. If not cached, query and store the result.
         Boolean isOp = opCache.computeIfAbsent(playerUUID, id -> playerOpStorage.isPlayerOperator(player));
-
-        // Operators are typically exempt from anti-cheat checks, so we skip further processing.
         if (Boolean.TRUE.equals(isOp)) {
             return;
         }
 
-        // Attempt to wrap the raw packet into a structured format to extract movement and rotation data.
-        // If the packet is malformed or wrapping fails, log the error and skip processing.
+        // Attempt to wrap the raw packet into a structured format.
         WrapperPlayClientPlayerPositionAndRotation wrapper;
         try {
             wrapper = new WrapperPlayClientPlayerPositionAndRotation(event);
@@ -625,26 +644,32 @@ public class ClientPacketListener extends PacketListenerAbstract {
             return;
         }
 
-        // Extract movement coordinates and orientation angles from the packet.
+        // Normalize yaw and update the wrapper.
+        final float normalizedYaw = FastMath.normalizeAngle(wrapper.getYaw());
+        wrapper.setYaw(normalizedYaw);
+
+        // Extract other packet data.
         final double x = wrapper.getPosition().getX();
         final double y = wrapper.getPosition().getY();
         final double z = wrapper.getPosition().getZ();
-        final float yaw = wrapper.getYaw();
         final float pitch = wrapper.getPitch();
         final boolean onGround = wrapper.isOnGround();
 
-        // Normalize yaw to ensure it's within expected bounds (e.g., -180 to 180 degrees).
-        final float normalizedYaw = FastMath.normalizeAngle(yaw);
-        // Update the wrapper with the normalized yaw value.
-        wrapper.setYaw(normalizedYaw);
+        // Retrieve player data for packet comparison.
+        PlayerData data = CLARA.getPlayerData(playerUUID);
 
-        // Offload validation and timing logic to a background thread to avoid blocking the main server thread.
+        // Check if this packet is identical to the last one.
+        if (data.isSameAsLastPositionLook(wrapper)) {
+            return; // Skip processing if it's a duplicate.
+        }
+
+        // Store the current packet as the new reference.
+        data.setLastPositionLookPacket(wrapper);
+
+        // Offload validation and recording to a background thread.
         executorService.execute(() -> {
             try {
-                // Validate the coordinates and rotation using anti-cheat logic.
-                // This typically checks for invalid values like NaN, infinity, or extreme out-of-bounds inputs.
                 if (!BadPacketsA.isValid(player, x, y, z, normalizedYaw, pitch)) {
-                    // If validation fails, kick the player with a predefined message.
                     KickMessages.kickPlayerForInvalidPacket(player, "A");
                     return;
                 }
@@ -653,15 +678,13 @@ public class ClientPacketListener extends PacketListenerAbstract {
                         .getTimer()
                         .recordPacket(
                                 player,
-                                player.getUniqueId(),
+                                playerUUID,
                                 ts,
-                                CLARA.getPlayerData(player.getUniqueId()),
+                                data,
                                 PacketKind.POSITION_AND_ROTATION
                         );
 
-
             } catch (Exception e) {
-                // If validation throws an exception, log it and skip further processing.
                 e.printStackTrace();
             }
         });
