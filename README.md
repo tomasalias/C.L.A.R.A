@@ -1,10 +1,14 @@
 C.L.A.R.A — Cheat.Limiting.Adaptive.Response.Algorithm (Beta)
 
-C.L.A.R.A is one of the first AI-assisted anti-cheat systems for Minecraft. Our advanced AI integration using Google's Gemini AI provides intelligent behavior analysis and enhanced cheat detection capabilities, reducing false positives while improving accuracy.
+[![Build Status](https://github.com/tomasalias/C.L.A.R.A/actions/workflows/build.yml/badge.svg)](https://github.com/tomasalias/C.L.A.R.A/actions/workflows/build.yml)
+[![Gemini AI Integration](https://github.com/tomasalias/C.L.A.R.A/actions/workflows/gemini-test.yml/badge.svg)](https://github.com/tomasalias/C.L.A.R.A/actions/workflows/gemini-test.yml)
+
+C.L.A.R.A is one of the first AI-assisted anti-cheat systems for Minecraft. Our advanced AI integration using Google's **Gemini 2.5 Flash Lite** provides intelligent behavior analysis and enhanced cheat detection capabilities, reducing false positives while improving accuracy.
 
 ## 🚀 AI-Enhanced Features
 
-**NEW: Gemini AI Integration**
+**NEW: Gemini 2.5 Flash Lite Integration**
+- **Optimized AI Model**: Using Google's latest Gemini 2.5 Flash Lite for faster, more efficient analysis
 - **Intelligent Analysis**: AI-powered behavior pattern recognition
 - **Reduced False Positives**: Smart distinction between lag and cheats
 - **Contextual Decisions**: Considers server performance, player ping, and environmental factors

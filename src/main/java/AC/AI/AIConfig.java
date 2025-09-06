@@ -86,8 +86,8 @@ public class AIConfig {
         aiEnabled = config.getBoolean("ai.enabled", true);
         geminiApiKey = config.getString("ai.gemini.api_key", "");
         geminiApiUrl = config.getString("ai.gemini.api_url", 
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent");
-        modelName = config.getString("ai.gemini.model", "gemini-pro");
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent");
+        modelName = config.getString("ai.gemini.model", "gemini-2.5-flash-lite");
         temperature = config.getDouble("ai.gemini.temperature", 0.3);
         maxTokens = config.getInt("ai.gemini.max_tokens", 1000);
         confidenceThreshold = config.getDouble("ai.gemini.confidence_threshold", 0.7);
