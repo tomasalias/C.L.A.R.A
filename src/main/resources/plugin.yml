@@ -6,4 +6,8 @@ commands:
   acping:
     description: View the average ping of a player.
     usage: /acping <player>
+  ai:
+    description: Manage and test AI functionality.
+    usage: /ai <status|test|analyze|reload|cleanup|testconnection>
+    permission: clara.ai
 

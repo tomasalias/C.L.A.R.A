@@ -1,8 +1,12 @@
 package AC;
 
+import AC.AI.AIAnalysisService;
+import AC.AI.BehaviorDataCollector;
+import AC.AI.Integration.AIEnhancedCheckHandler;
 import AC.Packets.Client.InteractEntity;
 import AC.Checks.Timer;
 import AC.Commands.acping;
+import AC.Commands.AICommand;
 
 import AC.Utils.CheckUtils.PlayerData;
 import AC.Utils.Listeners.RespawnListener;
@@ -35,6 +39,15 @@ public final class CLARA extends JavaPlugin {
     // Timer utility for scheduling and timing checks
     @Getter public Timer timer;
 
+    // AI Analysis Service for enhanced cheat detection
+    @Getter private AIAnalysisService aiAnalysisService;
+
+    // Behavior Data Collector for AI analysis
+    @Getter private BehaviorDataCollector behaviorDataCollector;
+
+    // AI Enhanced Check Handler for integrating AI with traditional checks
+    @Getter private AIEnhancedCheckHandler aiEnhancedCheckHandler;
+
     // Thread pool used for running computationally heavy checks off the main thread
     private ExecutorService executorService;
 
@@ -56,11 +69,26 @@ public final class CLARA extends JavaPlugin {
         playerDataMap = new ConcurrentHashMap<>();
         timer = new Timer(executorService);
 
+        // Initialize AI systems
+        behaviorDataCollector = new BehaviorDataCollector();
+        aiAnalysisService = new AIAnalysisService(executorService);
+        aiEnhancedCheckHandler = new AIEnhancedCheckHandler();
+
         // Register command for ping diagnostics
         this.getCommand("acping").setExecutor(new acping());
 
+        // Register AI management command
+        this.getCommand("ai").setExecutor(new AICommand());
+
         // Display startup messages in console
         Messages.startUpComments();
+
+        // Log AI integration status
+        getLogger().info("AI Integration: " + (aiAnalysisService != null && 
+            aiAnalysisService.getConfig().isValidConfiguration() ? "ENABLED" : "DISABLED"));
+        if (aiAnalysisService != null && aiAnalysisService.getConfig().isValidConfiguration()) {
+            getLogger().info("Using Gemini AI for enhanced cheat detection");
+        }
 
         // Register packet-level listeners for movement, rotation, and other checks
         ListenerRegistrar.registerPacketListeners(executorService, playerOpStorage);
@@ -94,6 +122,11 @@ public final class CLARA extends JavaPlugin {
 
         // Unregister all packet listeners
         PacketEvents.getAPI().getEventManager().unregisterAllListeners();
+
+        // Shutdown AI services
+        if (aiAnalysisService != null) {
+            aiAnalysisService.shutdown();
+        }
 
         // Gracefully shut down the thread pool to avoid memory leaks
         if (executorService != null && !executorService.isShutdown()) {
