@@ -1,0 +1,119 @@
+# C.L.A.R.A Configuration Example
+# Copy this to your plugins/C.L.A.R.A/config.yml file
+
+# ===== AI INTEGRATION SETTINGS =====
+ai:
+  # Enable AI-powered behavior analysis
+  enabled: true
+  
+  # Google Gemini API Configuration
+  gemini:
+    # REQUIRED: Get your free API key from https://makersuite.google.com/app/apikey
+    api_key: "YOUR_GEMINI_API_KEY_HERE"
+    
+    # API endpoint (default is correct)
+    api_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    
+    # AI Model settings
+    model: "gemini-pro"           # AI model to use
+    temperature: 0.3              # Response creativity (0.0-1.0, lower = more consistent)
+    max_tokens: 1000              # Maximum response length
+    
+    # Analysis behavior
+    confidence_threshold: 0.7     # Minimum AI confidence to flag as suspicious (0.0-1.0)
+    batch_analysis: true          # Process multiple players together for efficiency
+    batch_size: 5                 # Number of players to analyze per batch
+    analysis_delay_ms: 2000       # Minimum time between AI analyses (prevents spam)
+
+# ===== ENHANCED CHECK SETTINGS =====
+checks:
+  # Traditional checks (always enabled)
+  speed: true
+  flight: true
+  reach: true
+  timer: true
+  
+  # AI-enhanced versions (require AI to be enabled and configured)
+  ai_enhanced:
+    speed: true     # AI analyzes speed patterns for better accuracy
+    flight: true    # AI detects complex flight hacks
+    reach: true     # AI considers combat context for reach
+    timer: false    # Timer check is already very accurate, AI not needed
+
+# ===== ACTION CONFIGURATION =====
+actions:
+  # What to do when AI has HIGH confidence (>0.8) in cheating detection
+  high_confidence_action: "kick"        # Options: "kick", "ban", "warn", "log"
+  
+  # What to do when AI has MEDIUM confidence (0.6-0.8)
+  medium_confidence_action: "warn"      # Options: "kick", "ban", "warn", "log"
+  
+  # Minimum AI confidence required before taking any action
+  min_action_confidence: 0.6            # Below this, just log/monitor
+
+# ===== LOGGING SETTINGS =====
+logging:
+  # Log AI analysis results to console
+  log_ai_analysis: true
+  
+  # Enable detailed logging (shows all AI decisions, not just suspicious ones)
+  detailed_logging: false
+  
+  # Console output level
+  console_level: "INFO"          # Options: "INFO", "WARN", "ERROR"
+
+# ===== ADVANCED SETTINGS =====
+# (Most users don't need to change these)
+
+# Server performance considerations
+performance:
+  # Skip AI analysis if server TPS is below this threshold
+  min_tps_for_ai: 18.0
+  
+  # Maximum concurrent AI requests
+  max_concurrent_analyses: 3
+  
+  # Cache AI decisions for this many seconds to avoid duplicate analyses
+  decision_cache_seconds: 30
+
+# False positive reduction
+false_positive_reduction:
+  # Don't analyze players who recently joined (seconds)
+  ignore_recent_joins: 10
+  
+  # Don't analyze players who recently respawned (seconds)  
+  ignore_recent_respawns: 5
+  
+  # Don't analyze operators (admins)
+  ignore_operators: true
+
+# ===== SETUP INSTRUCTIONS =====
+# 1. Get your Gemini API key:
+#    - Go to https://makersuite.google.com/app/apikey
+#    - Sign in with your Google account
+#    - Create a new API key
+#    - Copy the key and paste it above (replace YOUR_GEMINI_API_KEY_HERE)
+#
+# 2. Restart your server
+#
+# 3. Test the setup:
+#    - Use /ai status to check if AI is enabled
+#    - Use /ai testconnection to verify API connection
+#    - Use /ai test <player> to test AI analysis
+#
+# 4. Monitor performance:
+#    - Watch console for AI analysis results
+#    - Adjust confidence_threshold if too many false positives
+#    - Disable specific ai_enhanced checks if needed
+#
+# 5. For support:
+#    - Check the AI_INTEGRATION_GUIDE.md file
+#    - Review console logs for error messages
+#    - Test with /ai commands for debugging
+
+# ===== SECURITY NOTES =====
+# - Keep your API key secure and private
+# - Monitor API usage in Google Cloud Console
+# - AI analysis data is sent to Google's servers
+# - All decisions are made locally on your server
+# - Traditional checks work even if AI is disabled

@@ -1,0 +1,63 @@
+# C.L.A.R.A Configuration
+# Cheat.Limiting.Adaptive.Response.Algorithm
+
+# AI Integration Settings
+ai:
+  # Enable AI analysis for enhanced detection
+  enabled: true
+  
+  # Gemini API Configuration
+  gemini:
+    # Your Gemini API key - KEEP THIS SECURE
+    api_key: "YOUR_GEMINI_API_KEY_HERE"
+    
+    # API endpoint for Gemini
+    api_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    
+    # Model settings
+    model: "gemini-pro"
+    temperature: 0.3
+    max_tokens: 1000
+    
+    # Analysis settings
+    confidence_threshold: 0.7
+    batch_analysis: true
+    batch_size: 5
+    analysis_delay_ms: 2000
+
+# Check Configuration
+checks:
+  # Enable/disable individual checks
+  speed: true
+  flight: true
+  reach: true
+  timer: true
+  
+  # AI enhancement for checks
+  ai_enhanced:
+    speed: true
+    flight: true
+    reach: true
+    timer: false  # Timer check is already quite accurate
+
+# Logging Configuration
+logging:
+  # Log AI analysis results
+  log_ai_analysis: true
+  
+  # Log detection details
+  detailed_logging: false
+  
+  # Console output level (INFO, WARN, ERROR)
+  console_level: "INFO"
+
+# Action Configuration
+actions:
+  # What to do when AI detects cheating with high confidence
+  high_confidence_action: "kick"  # kick, ban, warn, log
+  
+  # What to do with medium confidence
+  medium_confidence_action: "warn"
+  
+  # Minimum confidence to take action
+  min_action_confidence: 0.6
